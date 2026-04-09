@@ -14,7 +14,7 @@ def extract_json(text: str) -> str | None:
         try:
             json.loads(candidate)
             return candidate
-        except:
+        except json.JSONDecodeError:
             continue
 
     # От первой '{' до последней '}'
@@ -25,12 +25,12 @@ def extract_json(text: str) -> str | None:
         try:
             json.loads(candidate)
             return candidate
-        except:
+        except json.JSONDecodeError:
             candidate = re.sub(r'[\x00-\x1F\x7F]', '', candidate)
             try:
                 json.loads(candidate)
                 return candidate
-            except:
+            except json.JSONDecodeError:
                 pass
     return None
 

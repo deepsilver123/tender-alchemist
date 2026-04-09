@@ -26,12 +26,12 @@ def convert_docx_to_html(docx_path: str) -> str:
         tmp_path = tmp.name
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             ['pandoc', str(file_path), '-o', tmp_path, '--to', 'html', '--wrap=none'],
             check=True,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
 
         with open(tmp_path, 'r', encoding='utf-8') as f:

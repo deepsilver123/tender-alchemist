@@ -2,12 +2,10 @@ import sys
 import threading
 import json
 import os
-from pathlib import Path
 from datetime import datetime
 import time
-import re
 
-from PySide6.QtCore import QObject, Signal, Qt, QSettings, QThread, Slot
+from PySide6.QtCore import QObject, Signal, Qt, QSettings, QThread
 from PySide6.QtGui import QAction, QFont, QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -15,7 +13,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QFrame,
-    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -25,9 +22,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QSplitter,
     QStatusBar,
-    QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,

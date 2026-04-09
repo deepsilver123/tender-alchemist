@@ -5,8 +5,6 @@
 """
 
 from docx import Document
-from bs4 import BeautifulSoup
-import re
 
 
 def extract_from_docx(file_path) -> str:
@@ -14,7 +12,7 @@ def extract_from_docx(file_path) -> str:
     Извлекает текст и таблицы из DOCX, формирует простой HTML.
     Таблицы конвертируются в HTML-таблицы без Docling.
     """
-    print(f"  Открываю документ...")
+    print("  Открываю документ...")
     doc = Document(file_path)
     
     print(f"  Параграфов: {len(doc.paragraphs)}, таблиц: {len(doc.tables)}")
