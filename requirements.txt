@@ -1,11 +1,12 @@
 python-docx
 PySide6
-PyPDF2
+pypdf
+pandas
 requests==2.31.0
 openpyxl
 xlrd
 pdf2image
-pytesseract 
+pytesseract
 opencv-python
 beautifulsoup4
 urllib3==1.26.18
