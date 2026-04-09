@@ -1,0 +1,215 @@
+QWidget {
+    background: #ffffff;
+    color: #111111;
+    font-family: 'Segoe UI';
+    font-size: 10pt;
+}
+QFrame#HeaderCard, QFrame#ControlCard {
+    background: #ffffff;
+    border: none;
+    border-radius: 12px;
+}
+QFrame#ControlCard {
+    background: #ffffff;
+}
+QWidget#OutputCard {
+    border-left: 1px solid #e6e7ea;
+    border-right: 1px solid #e6e7ea;
+    border-radius: 8px;
+    background: #ffffff;
+}
+QLabel#TitleLabel {
+    color: #111111;
+    font-weight: 700;
+}
+QLabel#SubtitleLabel {
+    color: #111111;
+}
+QLabel#SectionLabel {
+    color: #111111;
+    font-weight: 600;
+}
+QPushButton {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Segoe UI Semibold';
+}
+QPushButton#PrimaryButton {
+    background: #f97316;
+    color: #ffffff;
+}
+QPushButton#PrimaryButton:hover {
+    background: #ea580c;
+}
+QPushButton#SecondaryButton {
+    background: #ffffff;
+    color: #111111;
+    border: 1px solid #e6e7ea;
+}
+QPushButton#SecondaryButton:hover {
+    background: #f9fafb;
+}
+QPushButton#DangerButton {
+    background: #fff1f2;
+    color: #be123c;
+    border: 1px solid #ffdce0;
+}
+QPushButton#DangerButton:hover {
+    background: #ffe4e6;
+}
+QListWidget#FileList, QPlainTextEdit#OutputText, QTreeWidget#JsonTree {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    color: #111111;
+    padding: 8px;
+    selection-background-color: #e5e7eb;
+    selection-color: #111111;
+    outline: 0;
+}
+QListWidget#FileList:focus, QPlainTextEdit#OutputText:focus, QTreeWidget#JsonTree:focus {
+    border: 1px solid #9ca3af;
+}
+QTabWidget#OutputTabs::pane {
+    border: none;
+    border-radius: 8px;
+    background: #ffffff;
+    top: -1px;
+}
+QTabBar::tab {
+    background: #f9fafb;
+    color: #374151;
+    border: none;
+    min-width: 100px;
+    padding: 8px 14px;
+    margin-right: 6px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    font-family: 'Segoe UI Semibold';
+}
+QTabBar::tab:selected {
+    background: #ffffff;
+    color: #111111;
+}
+QTabBar::tab:hover:!selected {
+    background: #f3f4f6;
+    color: #111111;
+}
+QListWidget#FileList::item:selected {
+    background: #f3f4f6;
+    color: #111111;
+    border-radius: 4px;
+}
+QCheckBox#RawCheck {
+    color: #111111;
+}
+QCheckBox#RawCheck::indicator {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #9ca3af;
+    border-radius: 4px;
+    background: #ffffff;
+}
+QCheckBox#RawCheck::indicator:hover {
+    border-color: #6b7280;
+    background: #f9fafb;
+}
+QCheckBox#RawCheck::indicator:checked {
+    border-color: #6b7280;
+    background: #ffffff;
+    image: url(__CHECK_ICON__);
+}
+QStatusBar {
+    background: #ffffff;
+    color: #111111;
+    border-top: none;
+}
+QScrollBar:vertical {
+    background: #f3f4f6;
+    width: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    min-height: 22px;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar:horizontal {
+    background: #f3f4f6;
+    height: 12px;
+    margin: 0;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal {
+    background: #cbd5e1;
+    min-width: 22px;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #94a3b8;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QLineEdit {
+    background: #ffffff;
+    border: 1px solid #e6e7ea;
+    border-radius: 8px;
+    color: #111111;
+    padding: 6px 10px;
+    selection-background-color: #e5e7eb;
+    selection-color: #111111;
+}
+QLineEdit:focus {
+    border: 1px solid #9ca3af;
+    outline: 0;
+}
+/* Ensure inputs in docks stand out slightly from white background */
+QDockWidget#SettingsDock QLineEdit, QDockWidget#DebugDock QLineEdit {
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+}
+QLabel#SettingsGroupLabel {
+    color: #374151;
+    font-weight: 600;
+    font-size: 10pt;
+    padding-top: 4px;
+}
+QFrame#SettingsSeparator {
+    color: #e5e7eb;
+    background-color: #e5e7eb;
+    border: none;
+    min-height: 1px;
+    max-height: 1px;
+}
+QDockWidget#SettingsDock {
+    border: none;
+    titlebar-close-icon: url(none);
+    titlebar-normal-icon: url(none);
+}
+QDockWidget#SettingsDock::title {
+    background: #f9fafb;
+    color: #374151;
+    padding: 8px 10px;
+    border-bottom: none;
+    text-align: left;
+    font-family: 'Segoe UI Semibold';
+}
+/* Make docks stand out slightly from the white main area */
+QDockWidget#SettingsDock, QDockWidget#DebugDock {
+    background: #fbfdff;
+    border-left: 1px solid #eef0f2;
+    border-top: none;
+    border-bottom: none;
+}
+QDockWidget#SettingsDock QWidget, QDockWidget#DebugDock QWidget {
+    background: transparent;
+}

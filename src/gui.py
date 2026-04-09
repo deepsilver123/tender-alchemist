@@ -7,7 +7,7 @@ from datetime import datetime
 import time
 import re
 
-from PySide6.QtCore import QObject, Signal, Qt, QSettings
+from PySide6.QtCore import QObject, Signal, Qt, QSettings, QThread, Slot
 from PySide6.QtGui import QAction, QFont, QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -36,7 +36,9 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, Optional
+import logging
+import logging.handlers
 
 if TYPE_CHECKING:
     # Provide Any-typed aliases so Pylance won't complain about attributes
@@ -77,6 +79,15 @@ class TenderAnalyzerApp:
         self.window.resize(1100, 760)
         self.window.setMinimumSize(920, 660)
 
+        # Typed attributes (help static analysis)
+        self.json_output: Optional[QPlainTextEdit] = None
+        self.log_output: Optional[QPlainTextEdit] = None
+        self.json_tree: Optional[QTreeWidget] = None
+        self.file_list: Optional[QListWidget] = None
+        self._analysis_thread: Optional[QThread] = None
+        self._analysis_worker: Optional[object] = None
+        self.logger: Optional[logging.Logger] = None
+
         self.last_json = None
         self.file_paths = []
         self._settings_store = QSettings("TenderAlchemist", "TenderAlchemistApp")
@@ -94,6 +105,8 @@ class TenderAnalyzerApp:
         self.signals.finished.connect(self._on_finished)
 
         self._build_ui()
+        # Configure logging (file + Qt handler)
+        self._setup_logging()
         # defer applying theme until show() to reduce perceived startup latency
         # (applies stylesheet right before window becomes visible)
 
@@ -326,12 +339,74 @@ class TenderAnalyzerApp:
         self.window.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Готов к работе")
 
+    def _setup_logging(self):
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        logger = logging.getLogger("tender")
+        logger.setLevel(logging.INFO)
+        if not logger.handlers:
+            fh = logging.handlers.RotatingFileHandler(
+                LOG_DIR / "app.log", maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+            )
+            fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+            fh.setFormatter(fmt)
+            logger.addHandler(fh)
+
+            class QtHandler(logging.Handler):
+                def __init__(self, emit_cb):
+                    super().__init__()
+                    self.emit_cb = emit_cb
+
+                def emit(self, record):
+                    try:
+                        msg = self.format(record)
+                    except Exception:
+                        msg = str(record)
+                    try:
+                        self.emit_cb(msg)
+                    except Exception:
+                        pass
+
+            qt = QtHandler(lambda m: self.signals.log.emit(m))
+            qt.setFormatter(fmt)
+            logger.addHandler(qt)
+
+        self.logger = logger
+
+    def _set_ui_enabled(self, enabled: bool):
+        # Helper to enable/disable main controls during analysis
+        try:
+            self.btn_analyze.setEnabled(enabled)
+            self.btn_add.setEnabled(enabled)
+            self.btn_remove.setEnabled(enabled)
+            self.btn_settings_menu.setEnabled(enabled)
+            self.btn_debug_menu.setEnabled(enabled)
+            self.settings_ministral_url.setEnabled(enabled)
+            self.settings_model.setEnabled(enabled)
+            self.settings_docling_url.setEnabled(enabled)
+        except Exception:
+            pass
+
     def _apply_theme(self):
         self.qt_app.setStyle("Fusion")
         check_icon = DATA_DIR / "checkmark_orange.svg"
         check_icon_qss = check_icon.as_posix()
 
-        style_sheet = """
+        style_path = DATA_DIR / "style.qss"
+        try:
+            if style_path.exists():
+                with open(style_path, "r", encoding="utf-8") as f:
+                    style = f.read()
+                self.qt_app.setStyleSheet(style.replace("__CHECK_ICON__", check_icon_qss))
+                return
+        except Exception:
+            pass
+
+        # Fallback to embedded stylesheet if external file is unavailable
+        try:
+            style_sheet = """
             QWidget {
                 background: #ffffff;
                 color: #111111;
@@ -548,7 +623,9 @@ class TenderAnalyzerApp:
                 background: transparent;
             }
             """
-        self.qt_app.setStyleSheet(style_sheet.replace("__CHECK_ICON__", check_icon_qss))
+            self.qt_app.setStyleSheet(style_sheet.replace("__CHECK_ICON__", check_icon_qss))
+        except Exception:
+            self._log_json("⚠️ Применение темы не удалось — продолжаем без неё")
 
     def _show_text_context_menu(self, text_widget, pos):
         menu = QMenu(self.window)
@@ -650,8 +727,40 @@ class TenderAnalyzerApp:
         self._current_model = self.settings_model.text().strip() or MINISTRAL_MODEL
         self._current_docling_url = self.settings_docling_url.text().strip() or "http://localhost:5001"
 
-        thread = threading.Thread(target=self._run_analysis, daemon=True)
-        thread.start()
+        # Start analysis inside a QThread using AnalysisWorker
+        try:
+            from analysis_worker import AnalysisWorker
+
+            self._analysis_thread = QThread()
+            self._analysis_worker = AnalysisWorker(
+                file_paths=self.file_paths,
+                ministral_url=self._current_ministral_url,
+                ministral_model=self._current_model,
+                docling_base=self._current_docling_url,
+                cancel_event=self._cancel_event,
+                build_prompt=self._build_analysis_prompt,
+            )
+            self._analysis_worker.moveToThread(self._analysis_thread)
+            self._analysis_thread.started.connect(self._analysis_worker.start)
+
+            # Forward worker signals to UI signals
+            self._analysis_worker.log.connect(self.signals.log)
+            self._analysis_worker.json_ready.connect(self.signals.json_ready)
+            self._analysis_worker.status.connect(self.signals.status)
+            self._analysis_worker.error.connect(lambda m: self._log_json(f"❌ {m}"))
+
+            # Ensure UI on finish
+            self._analysis_worker.finished.connect(self.signals.finished)
+            self._analysis_worker.finished.connect(self._analysis_thread.quit)
+            self._analysis_worker.finished.connect(self._on_worker_finished)
+            self._analysis_thread.finished.connect(self._analysis_thread.deleteLater)
+
+            self._analysis_thread.start()
+        except Exception as e:
+            self._log_json(f"❌ Не удалось запустить AnalysisWorker: {e}")
+            # Fallback to previous threading if AnalysisWorker import fails
+            thread = threading.Thread(target=self._run_analysis, daemon=True)
+            thread.start()
 
     def cancel_analysis(self):
         if not self._analysis_running:
@@ -792,7 +901,16 @@ class TenderAnalyzerApp:
         self.signals.finished.emit()
 
     def _log_json(self, message: str):
-        self.signals.log.emit(message)
+        try:
+            if hasattr(self, "logger") and self.logger:
+                self.logger.info(message)
+            else:
+                self.signals.log.emit(message)
+        except Exception:
+            try:
+                self.signals.log.emit(message)
+            except Exception:
+                pass
 
     def _build_analysis_prompt(self, all_html: str, candidate_products: list[str]) -> str:
         if not candidate_products:
@@ -811,10 +929,13 @@ class TenderAnalyzerApp:
         return MINISTRAL_PROMPT + "\n\n" + "\n".join(candidate_block) + "\n\n" + all_html
 
     def _extract_json_response(self, response: str):
-        fenced_match = re.search(r'```json\s*(\{.*?\}|\[.*?\])\s*```', response, re.DOTALL)
-        if fenced_match:
-            return fenced_match.group(1)
-        return response
+        # Delegate robust extraction to helper to make testing easier
+        try:
+            from json_utils import extract_json_from_text
+
+            return extract_json_from_text(response)
+        except Exception:
+            return None
 
     def _append_log(self, message: str):
         self.log_output.appendPlainText(message)
@@ -891,6 +1012,22 @@ class TenderAnalyzerApp:
             self._set_status("Анализ отменён")
         else:
             self._set_status("Анализ завершён")
+
+    def _on_worker_finished(self):
+        # Clean up thread/worker references after worker emits finished
+        try:
+            if hasattr(self, "_analysis_thread") and self._analysis_thread is not None:
+                # Allow thread to quit; it is already asked to quit by connection
+                try:
+                    self._analysis_thread.wait(1000)
+                except Exception:
+                    pass
+        finally:
+            try:
+                self._analysis_worker = None
+                self._analysis_thread = None
+            except Exception:
+                pass
 
     def mainloop(self):
         # Apply theme here to avoid blocking import/initialization time
