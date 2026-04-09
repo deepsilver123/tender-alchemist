@@ -1,0 +1,24 @@
+/*
+!.gitignore
+!/requirements.txt
+!/src/
+!/src/**
+!/data/
+!/data/**
+
+# Ignore Python cache inside allowed dirs
+src/**/__pycache__/
+src/**/*.pyc
+data/**/__pycache__/
+data/**/*.pyc
+
+# Common things to ignore
+.venv/
+venv/
+logs/
+*.log
+.env
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db

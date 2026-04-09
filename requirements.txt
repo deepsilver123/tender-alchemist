@@ -1,0 +1,13 @@
+python-docx
+PySide6
+PyPDF2
+requests==2.31.0
+openpyxl
+xlrd
+pdf2image
+pytesseract 
+opencv-python
+beautifulsoup4
+urllib3==1.26.18
+chardet==5.2.0
+charset-normalizer==3.3.2
