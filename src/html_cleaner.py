@@ -285,11 +285,7 @@ def compress_grid(grid, spans, keep_rows, keep_cols, soup) -> tuple:
             new_cell = soup.new_tag(cell.name)
             for content in cell.contents:
                 if isinstance(content, Tag):
-                    try:
-                        new_cell.append(content.__copy__())
-                    except Exception:
-                        # Fallback: parse the content HTML into the current soup
-                        new_cell.append(BeautifulSoup(str(content), 'html.parser'))
+                    new_cell.append(content.__copy__())
                 else:
                     new_cell.append(content)
 

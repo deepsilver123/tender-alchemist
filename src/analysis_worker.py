@@ -100,13 +100,9 @@ class AnalysisWorker(QObject):
 
             # Candidates
             self.log.emit("📌 Этап 2/5: детерминированный поиск кандидатов товаров")
-            try:
-                from html_cleaner import extract_candidate_products
+            from html_cleaner import extract_candidate_products
 
-                candidate_products = extract_candidate_products(all_html)
-            except Exception:
-                self.log.emit("⚠️ Не удалось импортировать html_cleaner; поиск кандидатов пропущен")
-                candidate_products = []
+            candidate_products = extract_candidate_products(all_html)
             self.log.emit(f"✅ Этап 2/5 завершён: кандидатов={len(candidate_products)}")
             if candidate_products:
                 preview = "; ".join(candidate_products[:5])
@@ -114,11 +110,7 @@ class AnalysisWorker(QObject):
 
             # Prompt
             self.log.emit("📌 Этап 3/5: сборка итогового prompt")
-            if self.build_prompt:
-                full_prompt = self.build_prompt(all_html, candidate_products)
-            else:
-                # fallback minimal prompt
-                full_prompt = all_html
+            full_prompt = self.build_prompt(all_html, candidate_products)
             self.log.emit(f"✅ Этап 3/5 завершён: длина prompt={len(full_prompt)} символов")
 
             with open(LOG_DIR / f"prompt_{timestamp}.html", "w", encoding="utf-8") as f:
@@ -144,21 +136,17 @@ class AnalysisWorker(QObject):
                     num_predict=MINISTRAL_NUM_PREDICT,
                 )
             else:
-                try:
-                    from ministral_client import call_ministral
+                from ministral_client import call_ministral
 
-                    response = call_ministral(
-                        prompt=full_prompt,
-                        model=self.ministral_model,
-                        api_key=MINISTRAL_API_KEY,
-                        base_url=self.ministral_url,
-                        temperature=MINISTRAL_TEMPERATURE,
-                        num_ctx=MINISTRAL_NUM_CTX,
-                        num_predict=MINISTRAL_NUM_PREDICT,
-                    )
-                except Exception:
-                    self.log.emit("❌ Не удалось импортировать клиент Ministral/Ollama; пропуск AI шага")
-                    response = None
+                response = call_ministral(
+                    prompt=full_prompt,
+                    model=self.ministral_model,
+                    api_key=MINISTRAL_API_KEY,
+                    base_url=self.ministral_url,
+                    temperature=MINISTRAL_TEMPERATURE,
+                    num_ctx=MINISTRAL_NUM_CTX,
+                    num_predict=MINISTRAL_NUM_PREDICT,
+                )
 
             if self._is_cancel_requested():
                 self.finished.emit()
@@ -169,17 +157,11 @@ class AnalysisWorker(QObject):
                 json_str = None
             else:
                 self.log.emit(f"✅ Этап 4/5 завершён: ответ получен за {ai_time:.2f} сек")
-                # Try to robustly extract JSON-like payload
+                # Extract JSON-like payload
                 fenced_match = re.search(r'```json\s*(\{.*?\}|\[.*?\])\s*```', response, re.DOTALL)
                 candidate = fenced_match.group(1) if fenced_match else response
-                # Try JSON decode
-                try:
-                    parsed = json.loads(candidate)
-                    json_str = json.dumps(parsed, ensure_ascii=False)
-                except Exception:
-                    # fallback: find any JSON-like substring
-                    match = re.search(r'(\{(?:.|\n)*\}|\[(?:.|\n)*\])', response, re.DOTALL)
-                    json_str = match.group(1) if match else response
+                parsed = json.loads(candidate)
+                json_str = json.dumps(parsed, ensure_ascii=False)
 
             if self._is_cancel_requested():
                 self.finished.emit()

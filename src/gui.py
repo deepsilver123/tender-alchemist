@@ -2,8 +2,6 @@ import sys
 import threading
 import json
 import os
-from datetime import datetime
-import time
 
 from PySide6.QtCore import QObject, Signal, Qt, QSettings, QThread
 from PySide6.QtGui import QAction, QFont, QColor
@@ -48,11 +46,7 @@ if TYPE_CHECKING:
 from config import (
     MINISTRAL_PROMPT,
     MINISTRAL_MODEL,
-    MINISTRAL_API_KEY,
     MINISTRAL_URL,
-    MINISTRAL_TEMPERATURE,
-    MINISTRAL_NUM_CTX,
-    MINISTRAL_NUM_PREDICT,
     DATA_DIR,
     LOG_DIR,
 )
@@ -335,10 +329,7 @@ class TenderAnalyzerApp:
         self.status_bar.showMessage("Готов к работе")
 
     def _setup_logging(self):
-        try:
-            LOG_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
         logger = logging.getLogger("tender")
         logger.setLevel(logging.INFO)
         if not logger.handlers:
@@ -372,17 +363,14 @@ class TenderAnalyzerApp:
 
     def _set_ui_enabled(self, enabled: bool):
         # Helper to enable/disable main controls during analysis
-        try:
-            self.btn_analyze.setEnabled(enabled)
-            self.btn_add.setEnabled(enabled)
-            self.btn_remove.setEnabled(enabled)
-            self.btn_settings_menu.setEnabled(enabled)
-            self.btn_debug_menu.setEnabled(enabled)
-            self.settings_ministral_url.setEnabled(enabled)
-            self.settings_model.setEnabled(enabled)
-            self.settings_docling_url.setEnabled(enabled)
-        except Exception:
-            pass
+        self.btn_analyze.setEnabled(enabled)
+        self.btn_add.setEnabled(enabled)
+        self.btn_remove.setEnabled(enabled)
+        self.btn_settings_menu.setEnabled(enabled)
+        self.btn_debug_menu.setEnabled(enabled)
+        self.settings_ministral_url.setEnabled(enabled)
+        self.settings_model.setEnabled(enabled)
+        self.settings_docling_url.setEnabled(enabled)
 
     def _apply_theme(self):
         self.qt_app.setStyle("Fusion")
@@ -390,237 +378,10 @@ class TenderAnalyzerApp:
         check_icon_qss = check_icon.as_posix()
 
         style_path = DATA_DIR / "style.qss"
-        try:
-            if style_path.exists():
-                with open(style_path, "r", encoding="utf-8") as f:
-                    style = f.read()
-                self.qt_app.setStyleSheet(style.replace("__CHECK_ICON__", check_icon_qss))
-                return
-        except Exception:
-            pass
-
-        # Fallback to embedded stylesheet if external file is unavailable
-        try:
-            style_sheet = """
-            QWidget {
-                background: #ffffff;
-                color: #111111;
-                font-family: 'Segoe UI';
-                font-size: 10pt;
-            }
-            QFrame#HeaderCard, QFrame#ControlCard {
-                background: #ffffff;
-                border: none;
-                border-radius: 12px;
-            }
-            QFrame#ControlCard {
-                background: #ffffff;
-            }
-            QWidget#OutputCard {
-                border-left: 1px solid #e6e7ea;
-                border-right: 1px solid #e6e7ea;
-                border-radius: 8px;
-                background: #ffffff;
-            }
-            QLabel#TitleLabel {
-                color: #111111;
-                font-weight: 700;
-            }
-            QLabel#SubtitleLabel {
-                color: #111111;
-            }
-            QLabel#SectionLabel {
-                color: #111111;
-                font-weight: 600;
-            }
-            QPushButton {
-                border: none;
-                border-radius: 8px;
-                padding: 8px 14px;
-                font-family: 'Segoe UI Semibold';
-            }
-            QPushButton#PrimaryButton {
-                background: #f97316;
-                color: #ffffff;
-            }
-            QPushButton#PrimaryButton:hover {
-                background: #ea580c;
-            }
-            QPushButton#SecondaryButton {
-                background: #ffffff;
-                color: #111111;
-                border: 1px solid #e6e7ea;
-            }
-            QPushButton#SecondaryButton:hover {
-                background: #f9fafb;
-            }
-            QPushButton#DangerButton {
-                background: #fff1f2;
-                color: #be123c;
-                border: 1px solid #ffdce0;
-            }
-            QPushButton#DangerButton:hover {
-                background: #ffe4e6;
-            }
-            QListWidget#FileList, QPlainTextEdit#OutputText, QTreeWidget#JsonTree {
-                background: #ffffff;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                color: #111111;
-                padding: 8px;
-                selection-background-color: #e5e7eb;
-                selection-color: #111111;
-                outline: 0;
-            }
-            QListWidget#FileList:focus, QPlainTextEdit#OutputText:focus, QTreeWidget#JsonTree:focus {
-                border: 1px solid #9ca3af;
-            }
-            QTabWidget#OutputTabs::pane {
-                border: none;
-                border-radius: 8px;
-                background: #ffffff;
-                top: -1px;
-            }
-            QTabBar::tab {
-                background: #f9fafb;
-                color: #374151;
-                border: none;
-                min-width: 100px;
-                padding: 8px 14px;
-                margin-right: 6px;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
-                font-family: 'Segoe UI Semibold';
-            }
-            QTabBar::tab:selected {
-                background: #ffffff;
-                color: #111111;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #f3f4f6;
-                color: #111111;
-            }
-            QListWidget#FileList::item:selected {
-                background: #f3f4f6;
-                color: #111111;
-                border-radius: 4px;
-            }
-            QCheckBox#RawCheck {
-                color: #111111;
-            }
-            QCheckBox#RawCheck::indicator {
-                width: 16px;
-                height: 16px;
-                border: 2px solid #9ca3af;
-                border-radius: 4px;
-                background: #ffffff;
-            }
-            QCheckBox#RawCheck::indicator:hover {
-                border-color: #6b7280;
-                background: #f9fafb;
-            }
-            QCheckBox#RawCheck::indicator:checked {
-                border-color: #6b7280;
-                background: #ffffff;
-                image: url(__CHECK_ICON__);
-            }
-            QStatusBar {
-                background: #ffffff;
-                color: #111111;
-                border-top: none;
-            }
-            QScrollBar:vertical {
-                background: #f3f4f6;
-                width: 12px;
-                margin: 0;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background: #cbd5e1;
-                min-height: 22px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #94a3b8;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                background: #f3f4f6;
-                height: 12px;
-                margin: 0;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #cbd5e1;
-                min-width: 22px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: #94a3b8;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-            QLineEdit {
-                background: #ffffff;
-                border: 1px solid #e6e7ea;
-                border-radius: 8px;
-                color: #111111;
-                padding: 6px 10px;
-                selection-background-color: #e5e7eb;
-                selection-color: #111111;
-            }
-            QLineEdit:focus {
-                border: 1px solid #9ca3af;
-                outline: 0;
-            }
-            /* Ensure inputs in docks stand out slightly from white background */
-            QDockWidget#SettingsDock QLineEdit, QDockWidget#DebugDock QLineEdit {
-                border: 1px solid #d1d5db;
-                background: #ffffff;
-            }
-            QLabel#SettingsGroupLabel {
-                color: #374151;
-                font-weight: 600;
-                font-size: 10pt;
-                padding-top: 4px;
-            }
-            QFrame#SettingsSeparator {
-                color: #e5e7eb;
-                background-color: #e5e7eb;
-                border: none;
-                min-height: 1px;
-                max-height: 1px;
-            }
-            QDockWidget#SettingsDock {
-                border: none;
-                titlebar-close-icon: url(none);
-                titlebar-normal-icon: url(none);
-            }
-            QDockWidget#SettingsDock::title {
-                background: #f9fafb;
-                color: #374151;
-                padding: 8px 10px;
-                border-bottom: none;
-                text-align: left;
-                font-family: 'Segoe UI Semibold';
-            }
-            /* Make docks stand out slightly from the white main area */
-            QDockWidget#SettingsDock, QDockWidget#DebugDock {
-                background: #fbfdff;
-                border-left: 1px solid #eef0f2;
-                border-top: none;
-                border-bottom: none;
-            }
-            QDockWidget#SettingsDock QWidget, QDockWidget#DebugDock QWidget {
-                background: transparent;
-            }
-            """
-            self.qt_app.setStyleSheet(style_sheet.replace("__CHECK_ICON__", check_icon_qss))
-        except Exception:
-            self._log_json("⚠️ Применение темы не удалось — продолжаем без неё")
+        if style_path.exists():
+            with open(style_path, "r", encoding="utf-8") as f:
+                style = f.read()
+            self.qt_app.setStyleSheet(style.replace("__CHECK_ICON__", check_icon_qss))
 
     def _show_text_context_menu(self, text_widget, pos):
         menu = QMenu(self.window)
@@ -723,189 +484,50 @@ class TenderAnalyzerApp:
         self._current_docling_url = self.settings_docling_url.text().strip() or "http://localhost:5001"
 
         # Start analysis inside a QThread using AnalysisWorker
-        try:
-            from analysis_worker import AnalysisWorker
+        from analysis_worker import AnalysisWorker
 
-            self._analysis_thread = QThread()
-            self._analysis_worker = AnalysisWorker(
-                file_paths=self.file_paths,
-                ministral_url=self._current_ministral_url,
-                ministral_model=self._current_model,
-                docling_base=self._current_docling_url,
-                cancel_event=self._cancel_event,
-                build_prompt=self._build_analysis_prompt,
-            )
-            self._analysis_worker.moveToThread(self._analysis_thread)
-            self._analysis_thread.started.connect(self._analysis_worker.start)
+        self._analysis_thread = QThread()
+        self._analysis_worker = AnalysisWorker(
+            file_paths=self.file_paths,
+            ministral_url=self._current_ministral_url,
+            ministral_model=self._current_model,
+            docling_base=self._current_docling_url,
+            cancel_event=self._cancel_event,
+            build_prompt=self._build_analysis_prompt,
+        )
+        self._analysis_worker.moveToThread(self._analysis_thread)
+        self._analysis_thread.started.connect(self._analysis_worker.start)
 
-            # Forward worker signals to UI signals
-            self._analysis_worker.log.connect(self.signals.log)
-            self._analysis_worker.json_ready.connect(self.signals.json_ready)
-            self._analysis_worker.status.connect(self.signals.status)
-            self._analysis_worker.error.connect(lambda m: self._log_json(f"❌ {m}"))
+        # Forward worker signals to UI signals
+        self._analysis_worker.log.connect(self.signals.log)
+        self._analysis_worker.json_ready.connect(self.signals.json_ready)
+        self._analysis_worker.status.connect(self.signals.status)
+        self._analysis_worker.error.connect(lambda m: self._log_json(f"❌ {m}"))
 
-            # Ensure UI on finish
-            self._analysis_worker.finished.connect(self.signals.finished)
-            self._analysis_worker.finished.connect(self._analysis_thread.quit)
-            self._analysis_worker.finished.connect(self._on_worker_finished)
-            self._analysis_thread.finished.connect(self._analysis_thread.deleteLater)
+        # Ensure UI on finish
+        self._analysis_worker.finished.connect(self.signals.finished)
+        self._analysis_worker.finished.connect(self._analysis_thread.quit)
+        self._analysis_worker.finished.connect(self._on_worker_finished)
+        self._analysis_thread.finished.connect(self._analysis_thread.deleteLater)
 
-            self._analysis_thread.start()
-        except Exception as e:
-            self._log_json(f"❌ Не удалось запустить AnalysisWorker: {e}")
-            # Fallback to previous threading if AnalysisWorker import fails
-            thread = threading.Thread(target=self._run_analysis, daemon=True)
-            thread.start()
+        self._analysis_thread.start()
 
     def cancel_analysis(self):
         if not self._analysis_running:
             return
+        self._analysis_canceled = True
         self._cancel_event.set()
         self.btn_cancel.setEnabled(False)
         self._set_status("Отмена анализа...")
         self._log_json("⏹ Запрошена отмена анализа. Ожидаем завершения текущего шага...")
 
-    def _is_cancel_requested(self) -> bool:
-        if self._cancel_event.is_set():
-            if not self._analysis_canceled:
-                self._analysis_canceled = True
-                self._log_json("⏹ Анализ отменён пользователем.")
-            return True
-        return False
-
-    def _run_analysis(self):
-        start_time = time.time()
-        ministral_url = self._current_ministral_url
-        ministral_model = self._current_model
-        docling_base = self._current_docling_url
-        # Heavy parser deps (pandas/bs4) are loaded only when analysis actually starts.
-        from file_reader import extract_text_from_file
-
-        self._log_json(f"🚀 Начало анализа: {datetime.now().strftime('%H:%M:%S')}")
-        self._log_json(f"📌 Этап 1/5: чтение {len(self.file_paths)} файлов")
-
-        all_html = ""
-        read_start = time.time()
-        for index, fp in enumerate(self.file_paths, start=1):
-            if self._is_cancel_requested():
-                self.signals.finished.emit()
-                return
-            file_name = os.path.basename(fp)
-            self._log_json(f"[{index}/{len(self.file_paths)}] Читаю {file_name}...")
-            file_step_start = time.time()
-            content = extract_text_from_file(fp, docling_base, self._is_cancel_requested)
-            if self._is_cancel_requested():
-                self.signals.finished.emit()
-                return
-            all_html += f"\n\n--- Файл: {os.path.basename(fp)} ---\n\n{content}\n"
-            file_step_time = time.time() - file_step_start
-            self._log_json(f"✅ {file_name}: {file_step_time:.2f} сек, символов={len(content)}")
-        read_time = time.time() - read_start
-        self._log_json(f"✅ Этап 1/5 завершён: {read_time:.2f} сек")
-
-        log_dir = LOG_DIR
-        log_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%d-%m-%Y-%H-%M")
-        with open(log_dir / f"original_{timestamp}.html", "w", encoding="utf-8") as f:
-            f.write(all_html)
-        self._log_json(f"📁 Сохранён исходный объединённый HTML: {str(log_dir / f'original_{timestamp}.html')}")
-
-        self._log_json("📌 Этап 2/5: детерминированный поиск кандидатов товаров")
-        # lazy import: heavy HTML parsing (bs4 etc.) only when needed
-        try:
-            from html_cleaner import extract_candidate_products
-        except Exception:
-            self._log_json("⚠️ Не удалось импортировать html_cleaner; поиск кандидатов пропущен")
-            candidate_products = []
-        else:
-            candidate_products = extract_candidate_products(all_html)
-        self._log_json(f"✅ Этап 2/5 завершён: кандидатов={len(candidate_products)}")
-        if candidate_products:
-            preview = "; ".join(candidate_products[:5])
-            self._log_json(f"🔎 Превью кандидатов: {preview}")
-
-        self._log_json("📌 Этап 3/5: сборка итогового prompt")
-        full_prompt = self._build_analysis_prompt(all_html, candidate_products)
-        self._log_json(f"✅ Этап 3/5 завершён: длина prompt={len(full_prompt)} символов")
-
-        prompt_path = log_dir / f"prompt_{timestamp}.html"
-        with open(prompt_path, "w", encoding="utf-8") as f:
-            f.write(full_prompt)
-        self._log_json(f"📁 Полный prompt сохранён до отправки API: {str(prompt_path)}")
-
-        if self._is_cancel_requested():
-            self.signals.finished.emit()
-            return
-        self._log_json("📌 Этап 4/5: отправка prompt в Ministral API")
-        self._log_json(f"🧠 Модель: {ministral_model}; URL: {ministral_url}")
-        ai_start = time.time()
-        # lazy import: network client only when calling the model
-        try:
-            from ministral_client import call_ministral
-        except Exception:
-            self._log_json("❌ Не удалось импортировать клиент Ministral/Ollama; пропуск AI шага")
-            response = None
-        else:
-            response = call_ministral(
-                prompt=full_prompt,
-                model=ministral_model,
-                api_key=MINISTRAL_API_KEY,
-                base_url=ministral_url,
-                temperature=MINISTRAL_TEMPERATURE,
-                num_ctx=MINISTRAL_NUM_CTX,
-                num_predict=MINISTRAL_NUM_PREDICT,
-            )
-        if self._is_cancel_requested():
-            self.signals.finished.emit()
-            return
-        ai_time = time.time() - ai_start
-        if response is None:
-            self._log_json(f"❌ Этап 4/5: AI анализ не дал ответа ({ai_time:.2f} сек)")
-            json_str = None
-        else:
-            self._log_json(f"✅ Этап 4/5 завершён: ответ получен за {ai_time:.2f} сек")
-            json_str = self._extract_json_response(response)
-
-        if self._is_cancel_requested():
-            self.signals.finished.emit()
-            return
-
-        if not json_str:
-            self._log_json("❌ Ошибка при обращении к Ministral.")
-            self.signals.finished.emit()
-            return
-
-        if self.show_raw_checkbox.isChecked():
-            self._log_json("=== СЫРОЙ ОТВЕТ МОДЕЛИ ===")
-            self._log_json(json_str[:2000] if len(json_str) > 2000 else json_str)
-            self._log_json("=== КОНЕЦ СЫРОГО ОТВЕТА ===")
-
-        self._log_json("📌 Этап 5/5: публикация и сохранение JSON")
-        self._log_json("✅ JSON получен")
-        self.signals.json_ready.emit(json_str)
-        self.last_json = json_str
-
-        result_path = os.path.join(log_dir, f"result_{timestamp}.json")
-        with open(result_path, "w", encoding="utf-8") as f:
-            f.write(json_str)
-        self._log_json(f"📁 Результат сохранён в {result_path}")
-        self._log_json("✅ Этап 5/5 завершён")
-
-        total_time = time.time() - start_time
-        self._log_json(f"🎉 Анализ завершён за {total_time:.2f} сек")
-        self.signals.finished.emit()
+    # Legacy synchronous analysis runner removed — AnalysisWorker in QThread is used exclusively
 
     def _log_json(self, message: str):
-        try:
-            if hasattr(self, "logger") and self.logger:
-                self.logger.info(message)
-            else:
-                self.signals.log.emit(message)
-        except Exception:
-            try:
-                self.signals.log.emit(message)
-            except Exception:
-                pass
+        if self.logger:
+            self.logger.info(message)
+        else:
+            self.signals.log.emit(message)
 
     def _build_analysis_prompt(self, all_html: str, candidate_products: list[str]) -> str:
         if not candidate_products:
@@ -1026,10 +648,6 @@ class TenderAnalyzerApp:
 
     def mainloop(self):
         # Apply theme here to avoid blocking import/initialization time
-        try:
-            self._apply_theme()
-        except Exception:
-            # Ensure app still runs even if theme application fails
-            self._log_json("⚠️ Применение темы не удалось — продолжаем без неё")
+        self._apply_theme()
         self.window.show()
         return self.qt_app.exec()
