@@ -36,6 +36,16 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    # Provide Any-typed aliases so Pylance won't complain about attributes
+    QSizePolicy: Any
+    Qt: Any
+    QDockWidget: Any
+    QFrame: Any
+    QCoreApplication: Any
+
 # lazy imports: heavy modules (html_cleaner, ministral_client) are loaded only when analysis runs
 # project-level `data/` and `logs/` are defined in config.py
 from config import (
@@ -60,7 +70,8 @@ class UiSignals(QObject):
 
 class TenderAnalyzerApp:
     def __init__(self):
-        self.qt_app = QApplication.instance() or QApplication(sys.argv)
+        # Ensure the type is recognized as QApplication (not QCoreApplication)
+        self.qt_app = cast(QApplication, QApplication.instance() or QApplication(sys.argv))
         self.window = QMainWindow()
         self.window.setWindowTitle("Tender Alchemist")
         self.window.resize(1100, 760)
@@ -69,7 +80,9 @@ class TenderAnalyzerApp:
         self.last_json = None
         self.file_paths = []
         self._settings_store = QSettings("TenderAlchemist", "TenderAlchemistApp")
-        self._last_open_dir = self._settings_store.value("last_open_dir", os.path.expanduser("~"))
+        last_open = self._settings_store.value("last_open_dir", os.path.expanduser("~"))
+        # QSettings.value can return QVariant/None; ensure we have a str for the file dialog
+        self._last_open_dir: str = last_open if isinstance(last_open, str) else os.path.expanduser("~")
         self._cancel_event = threading.Event()
         self._analysis_running = False
         self._analysis_canceled = False
@@ -195,6 +208,13 @@ class TenderAnalyzerApp:
             lambda pos: self._show_text_context_menu(self.json_output, pos)
         )
         json_panel_layout.addWidget(self.json_output)
+
+        # Tree view for structured JSON (created here so Pylance sees the attribute)
+        self.json_tree = QTreeWidget()
+        self.json_tree.setObjectName("JsonTree")
+        self.json_tree.setHeaderHidden(True)
+        self.json_tree.setVisible(False)
+        json_panel_layout.addWidget(self.json_tree)
 
         view_layout.addWidget(json_panel)
 

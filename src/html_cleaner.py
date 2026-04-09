@@ -143,7 +143,7 @@ def clean_table(table: Tag, soup: BeautifulSoup):
         return
     
     # 4. Сжимаем таблицу
-    new_grid, new_spans = compress_grid(grid, spans, keep_rows, keep_cols)
+    new_grid, new_spans = compress_grid(grid, spans, keep_rows, keep_cols, soup)
     
     # 5. Строим новую таблицу
     new_table = grid_to_table(new_grid, new_spans, soup)
@@ -175,9 +175,9 @@ def parse_table_grid(rows) -> tuple:
             while (row_idx, col) in rowspan_placeholder:
                 row_cells.append(None)
                 col += 1
-            
-            colspan = int(cell.get('colspan', 1))
-            rowspan = int(cell.get('rowspan', 1))
+            # Ensure we pass a str/int into int() to satisfy type checkers
+            colspan = int(str(cell.get('colspan') or 1))
+            rowspan = int(str(cell.get('rowspan') or 1))
             
             spans[(row_idx, col)] = (rowspan, colspan, cell)
             row_cells.append(cell)
@@ -244,7 +244,9 @@ def find_non_empty_columns(grid) -> tuple:
     return keep_rows, keep_cols
 
 
-def compress_grid(grid, spans, keep_rows, keep_cols) -> tuple:
+def compress_grid(grid, spans, keep_rows, keep_cols, soup) -> tuple:
+    # Note: now expects a BeautifulSoup `soup` so new tags are created in the
+    # correct document context.
     """
     Сжимает матрицу, пересчитывая rowspan/colspan.
     """
@@ -279,18 +281,23 @@ def compress_grid(grid, spans, keep_rows, keep_cols) -> tuple:
         new_colspan = len(visible_cols)
         
         if new_grid[new_r][new_c] is None:
-            new_cell = Tag(cell.name)
+            # Create new tag in the provided soup to avoid cross-document issues
+            new_cell = soup.new_tag(cell.name)
             for content in cell.contents:
                 if isinstance(content, Tag):
-                    new_cell.append(content.__copy__())
+                    try:
+                        new_cell.append(content.__copy__())
+                    except Exception:
+                        # Fallback: parse the content HTML into the current soup
+                        new_cell.append(BeautifulSoup(str(content), 'html.parser'))
                 else:
                     new_cell.append(content)
-            
+
             if new_rowspan > 1:
-                new_cell['rowspan'] = str(new_rowspan)
+                new_cell.attrs['rowspan'] = str(new_rowspan)
             if new_colspan > 1:
-                new_cell['colspan'] = str(new_colspan)
-            
+                new_cell.attrs['colspan'] = str(new_colspan)
+
             new_grid[new_r][new_c] = new_cell
             new_spans[(new_r, new_c)] = (new_rowspan, new_colspan, new_cell)
     
@@ -325,9 +332,10 @@ def grid_to_table(grid, spans, soup) -> list:
             
             # Очищаем текст от шума
             clean_cell_text(cell)
-            
-            rowspan = int(cell.get('rowspan', 1))
-            colspan = int(cell.get('colspan', 1))
+
+            # Coerce attribute values to strings before converting to int
+            rowspan = int(str(cell.get('rowspan') or 1))
+            colspan = int(str(cell.get('colspan') or 1))
             
             tr.append(cell)
             
@@ -395,9 +403,9 @@ def merge_duplicate_cells(rows):
             nxt_text = nxt.get_text(strip=True)
             
             if curr_text and curr_text == nxt_text and len(curr_text) < 200:
-                curr_colspan = int(curr.get('colspan', 1))
-                nxt_colspan = int(nxt.get('colspan', 1))
-                curr['colspan'] = str(curr_colspan + nxt_colspan)
+                curr_colspan = int(str(curr.get('colspan') or 1))
+                nxt_colspan = int(str(nxt.get('colspan') or 1))
+                curr.attrs['colspan'] = str(curr_colspan + nxt_colspan)
                 nxt.decompose()
                 cells = row.find_all(['td', 'th'])
             else:
@@ -409,7 +417,7 @@ def merge_duplicate_cells(rows):
     
     max_cols = 0
     for row in rows:
-        cols = sum(int(cell.get('colspan', 1)) for cell in row.find_all(['td', 'th']))
+        cols = sum(int(str(cell.get('colspan') or 1)) for cell in row.find_all(['td', 'th']))
         max_cols = max(max_cols, cols)
     
     if max_cols == 0:
@@ -423,7 +431,7 @@ def merge_duplicate_cells(rows):
             col_pos = 0
             cell = None
             for c in row.find_all(['td', 'th']):
-                colspan = int(c.get('colspan', 1))
+                colspan = int(str(c.get('colspan') or 1))
                 if col_pos <= col < col_pos + colspan:
                     cell = c
                     break
@@ -451,9 +459,9 @@ def merge_duplicate_cells(rows):
             
             if span > 1 and col_cells[i] is not None:
                 cell = col_cells[i]
-                current_rowspan = int(cell.get('rowspan', 1))
+                current_rowspan = int(str(cell.get('rowspan') or 1))
                 if current_rowspan == 1:
-                    cell['rowspan'] = str(span)
+                    cell.attrs['rowspan'] = str(span)
                     for j in range(i + 1, i + span):
                         if col_cells[j] is not None and col_cells[j] != cell:
                             col_cells[j].decompose()
@@ -488,8 +496,8 @@ def _table_to_text_grid(table: Tag) -> list[list[str]]:
                 column_index += 1
 
             text = re.sub(r'\s+', ' ', cell.get_text(' ', strip=True))
-            rowspan = max(1, int(cell.get('rowspan', 1) or 1))
-            colspan = max(1, int(cell.get('colspan', 1) or 1))
+            rowspan = max(1, int(str(cell.get('rowspan') or 1)))
+            colspan = max(1, int(str(cell.get('colspan') or 1)))
 
             for offset in range(colspan):
                 current_row.append(text)
