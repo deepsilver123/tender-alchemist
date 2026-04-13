@@ -1,0 +1,23 @@
+[project]
+name = "tender_alchemist_core"
+version = "0.0.1"
+description = "Core analysis package for Tender Alchemist"
+authors = [ { name = "Dev" } ]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tender_alchemist_core"
+version = "0.1.0"
+description = "Core analysis package for Tender Alchemist"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [ { name = "Tender Alchemist" } ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*"]

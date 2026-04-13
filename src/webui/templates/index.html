@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tender Alchemist</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 18px; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; overflow: auto; font-size: 17px; }
+
+    /* ─── Layout ─── */
+    .app-layout { display: grid; grid-template-columns: clamp(220px, 22vw, 320px) 1fr; width: 100%; height: 100vh; overflow: hidden; }
+
+    /* ─── Sidebar ─── */
+    .sidebar { background: #0f172a; color: #cbd5e1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid #1e293b; }
+    .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px 18px 16px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+    .brand-icon { width: 38px; height: 38px; background: linear-gradient(135deg, #2563eb, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .brand-name { font-size: 17px; font-weight: 700; color: #f8fafc; line-height: 1.2; }
+    .brand-sub  { font-size: 13px; color: #64748b; }
+    .new-task-btn { display: flex; align-items: center; gap: 8px; margin: 14px 12px 6px; padding: 11px 14px; background: #1e3a5f; color: #93c5fd; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 600; transition: background .15s, color .15s; flex-shrink: 0; }
+    .new-task-btn:hover { background: #2563eb; color: #fff; }
+    .sidebar-section { padding: 10px 18px 5px; flex-shrink: 0; }
+    .sidebar-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #475569; }
+    .task-list { flex: 1; overflow-y: auto; padding: 4px 12px 16px; }
+    .task-list::-webkit-scrollbar { width: 5px; }
+    .task-list::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    .task-card { display: block; padding: 11px 12px; border-radius: 8px; text-decoration: none; color: #94a3b8; margin-bottom: 4px; transition: background .12s; border: 1px solid transparent; }
+    .task-card:hover { background: #1e293b; color: #cbd5e1; }
+    .task-card.active { background: #162032; border-color: rgba(37,99,235,.4); color: #e2e8f0; }
+    .task-card-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .task-card-id { font-family: 'Consolas', monospace; font-size: 15px; font-weight: 600; }
+    .task-card-files { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .file-chip { display: inline-block; padding: 4px 10px; background: rgba(148,163,184,.06); color: #e2e8f0; border: 1px solid rgba(148,163,184,.12); border-radius: 6px; font-size: 14px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .task-card:hover .file-chip { color: #cbd5e1; border-color: rgba(203,213,225,.25); }
+    .task-card.active .file-chip { color: #bfdbfe; border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.1); }
+    .empty-tasks { text-align: center; padding: 32px 16px; color: #334155; font-size: 13px; line-height: 1.7; }
+    .empty-icon { font-size: 30px; margin-bottom: 10px; }
+
+    /* ─── Badges ─── */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; flex-shrink: 0; }
+    .badge-running { background: #78350f; color: #fbbf24; }
+    .badge-done    { background: #14532d; color: #4ade80; }
+    .badge-failed  { background: #450a0a; color: #f87171; }
+    .badge-created,.badge-unknown { background: #1e293b; color: #64748b; }
+    .badge-lg { padding: 6px 16px; font-size: 14px; }
+
+    /* ─── Main content ─── */
+    .main-content { overflow-y: auto; background: #f1f5f9; min-width: 0; }
+    .main-inner { padding: 28px 32px 48px; width: 100%; }
+
+    /* ─── Cards ─── */
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04); padding: 24px 26px; margin-bottom: 18px; }
+    .card-title { font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    /* ─── Upload form ─── */
+    .page-head { margin-bottom: 22px; }
+    .page-head h2 { font-size: 28px; font-weight: 800; color: #0f172a; }
+    .page-head p  { font-size: 16px; color: #64748b; margin-top: 6px; }
+    .field { margin-bottom: 16px; }
+    .field > label { display: block; font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+    .input-text { width: 100%; padding: 11px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 15px; color: #1e293b; background: #f8fafc; transition: border-color .2s, box-shadow .2s; outline: none; font-family: inherit; }
+    .input-text:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .file-drop-zone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; border: 2px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; cursor: pointer; text-align: center; transition: border-color .2s, background .2s; }
+    .file-drop-zone:hover, .file-drop-zone.drag-over { border-color: #2563eb; background: #eff6ff; }
+    .file-drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .fz-icon { font-size: 38px; margin-bottom: 10px; color: #94a3b8; }
+    .fz-main { font-size: 16px; font-weight: 600; color: #374151; }
+    .fz-sub  { font-size: 14px; color: #94a3b8; margin-top: 5px; }
+    .file-preview-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .fpc { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 20px; font-size: 14px; color: #1d4ed8; }
+    .adv-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; cursor: pointer; margin-bottom: 14px; user-select: none; padding: 4px 0; }
+    .adv-chevron { transition: transform .2s; display: inline-block; }
+    .adv-toggle.open .adv-chevron { transform: rotate(90deg); }
+    .adv-body { display: none; }
+    .adv-body.open { display: block; }
+    .submit-btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 26px; background: #2563eb; color: #fff; border: 0; border-radius: 8px; font-size: 16px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background .2s, transform .1s; }
+    .submit-btn:hover { background: #1d4ed8; }
+    .submit-btn:active { transform: scale(.98); }
+    .submit-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* ─── Task header card ─── */
+    .task-header-card { background: linear-gradient(135deg, #0f172a 0%, #1e2d4a 100%); color: #e2e8f0; }
+    .task-header-card .card-title { color: #94a3b8; margin-bottom: 4px; }
+    .task-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .task-id-display { font-family: 'Consolas', monospace; font-size: 20px; font-weight: 700; color: #f8fafc; word-break: break-all; margin: 4px 0 14px; }
+    .task-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .download-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #059669; color: #fff; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 600; transition: background .2s; }
+    .download-btn:hover { background: #047857; }
+    .ghost-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: rgba(255,255,255,.07); color: #94a3b8; border-radius: 8px; text-decoration: none; font-size: 15px; transition: background .2s; }
+    .ghost-btn:hover { background: rgba(255,255,255,.12); color: #e2e8f0; }
+    .uploaded-files { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 14px; }
+    .uf-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(37,99,235,.15); border: 1px solid rgba(37,99,235,.3); border-radius: 20px; font-size: 14px; color: #93c5fd; }
+
+    /* ─── Log panel ─── */
+    .log-panel { background: #0b1220; color: #e6edf3; border-radius: 8px; padding: 18px 20px; font-family: 'Consolas', 'Courier New', monospace; font-size: 16px; line-height: 1.85; min-height: 180px; max-height: clamp(220px, 40vh, 620px); overflow-y: auto; white-space: pre-wrap; }
+    .log-panel::-webkit-scrollbar { width: 6px; }
+    .log-panel::-webkit-scrollbar-track { background: #0b1220; }
+    .log-panel::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 4px; }
+    .log-line { padding: 2px 0; }
+    .log-empty { color: #334155; font-style: italic; }
+
+    /* ─── JSON result ─── */
+    .json-wrap { position: relative; }
+    .copy-btn { position: absolute; top: 10px; right: 10px; padding: 6px 14px; background: rgba(255,255,255,.1); color: #e6edf3; border: 0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background .2s; }
+    .copy-btn:hover { background: rgba(255,255,255,.18); }
+    .copy-btn.copied { background: #059669; }
+    .json-preview { background: #0f1724; color: #e6edf3; border-radius: 8px; padding: 18px; overflow: auto; max-height: clamp(220px, 55vh, 760px); margin: 0; }
+    .json-preview code { font-family: 'Consolas', monospace; font-size: 16px; }
+
+    /* ─── Error ─── */
+    .error-box { background: #450a0a; color: #fca5a5; border-radius: 8px; padding: 11px 14px; font-size: 13px; margin-top: 8px; }
+
+    /* ─── Spoiler ─── */
+    details summary { cursor: pointer; list-style: none; }
+    details summary::-webkit-details-marker { display: none; }
+
+    /* ─── Responsive ─── */
+    /* Tablet: narrow sidebar */
+    @media (max-width: 1024px) {
+      .app-layout { grid-template-columns: 220px 1fr; }
+      .main-inner { padding: 22px 22px 40px; }
+    }
+    /* Mobile: sidebar stacks on top as horizontal strip */
+    @media (max-width: 680px) {
+      .app-layout { display: flex; flex-direction: column; height: auto; overflow: visible; }
+      body { height: auto; overflow: visible; }
+      .sidebar { width: 100%; flex-direction: row; align-items: stretch; overflow-x: auto; border-right: none; border-bottom: 1px solid #1e293b; max-height: none; }
+      .sidebar-brand { border-bottom: none; border-right: 1px solid #1e293b; padding: 14px 16px; flex-shrink: 0; }
+      .sidebar-section { display: none; }
+      .new-task-btn { margin: 10px 8px; flex-shrink: 0; white-space: nowrap; }
+      .task-list { display: flex; flex-direction: row; padding: 8px; gap: 6px; overflow-x: auto; overflow-y: visible; flex: 0 0 auto; align-items: flex-start; }
+      .task-list::-webkit-scrollbar { height: 4px; width: auto; }
+      .task-card { margin-bottom: 0; flex-shrink: 0; min-width: 160px; max-width: 220px; }
+      .task-card-files { display: none; }
+      .main-content { overflow-y: visible; }
+      .main-inner { padding: 16px 14px 32px; }
+      .empty-tasks { padding: 10px 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ─── Sidebar ─── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">⚗</div>
+      <div>
+        <div class="brand-name">Tender Alchemist</div>
+        <div class="brand-sub">Анализ тендеров</div>
+      </div>
+    </div>
+
+    <a href="/" class="new-task-btn">
+      <span style="font-size:16px;line-height:1;">＋</span> Новая задача
+    </a>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Мои задачи</div>
+    </div>
+
+    <div class="task-list">
+      {% if my_tasks %}
+        {% for t in my_tasks %}
+        <a href="/?task_id={{ t.id }}" class="task-card {% if t.id == (task_id|default('')) %}active{% endif %}">
+          <div class="task-card-row">
+            <span class="task-card-id">{{ t.id[:8] }}…</span>
+            <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+          </div>
+          {% if t.files %}
+          <div class="task-card-files">
+            {% for f in t.files %}
+            <span class="file-chip" title="{{ f }}">{{ f }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-tasks">
+          <div class="empty-icon">📋</div>
+          <div>Задач пока нет.<br>Загрузите файлы,<br>чтобы начать.</div>
+        </div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <!-- ─── Main content ─── -->
+  <main class="main-content">
+    <div class="main-inner">
+
+      {% if task_id %}
+      <!-- ── Task view ── -->
+
+      <div class="card task-header-card">
+        <div class="task-top">
+          <div>
+            <div class="card-title" style="margin-bottom:4px;">Задача</div>
+            <div class="task-id-display">{{ task_id }}</div>
+          </div>
+          <span id="statusBadge" class="badge badge-{{ status|default('created') }} badge-lg">{{ status|default('created') }}</span>
+        </div>
+
+        {% if task_files %}
+        <div class="uploaded-files">
+          {% for f in task_files %}
+          <div class="uf-chip">📄 {{ f }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="task-actions">
+          <a id="download" href="{{ download_url|default('') }}" class="download-btn"
+             style="display:{% if download_url %}inline-flex{% else %}none{% endif %};">
+            ⬇ Скачать JSON
+          </a>
+          <a href="/" class="ghost-btn">＋ Новая задача</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🖥 Логи обработки</div>
+        <div id="logs" class="log-panel" role="log" aria-live="polite">{% if initial_logs %}{{ initial_logs }}{% else %}<span class="log-empty">Ожидание запуска…</span>{% endif %}</div>
+        <div id="error" class="error-box" style="display:{% if error %}block{% else %}none{% endif %};">{{ error|default('') }}</div>
+      </div>
+
+      <div class="card" id="resultCard" style="display:{% if initial_json %}block{% else %}none{% endif %};">
+        <div class="card-title">✅ Результат JSON</div>
+        <div class="json-wrap">
+          <button id="copyBtn" class="copy-btn">Копировать</button>
+          <pre id="jsonPreview" class="json-preview"><code id="jsonCode" class="json">{{ initial_json|default('') }}</code></pre>
+        </div>
+      </div>
+
+      <div class="card" id="rawCard" style="display:{% if raw_available %}block{% else %}none{% endif %};">
+        <details id="rawDetails">
+          <summary class="card-title" style="margin-bottom:0; cursor:pointer;">🔍 Сырой ответ модели</summary>
+          <pre id="rawPreview" class="log-panel" style="margin-top:12px; min-height:60px; white-space:pre-wrap;"></pre>
+        </details>
+      </div>
+
+      {% else %}
+      <!-- ── Upload form ── -->
+
+      <div class="page-head">
+        <h2>Новый анализ</h2>
+        <p>Загрузите файлы ТЗ и НМЦК — модель извлечёт позиции для закупки</p>
+      </div>
+
+      <div class="card">
+        <form method="post" action="/analyze" enctype="multipart/form-data" id="uploadForm">
+          <div class="field">
+            <label>Файлы для анализа</label>
+            <div class="file-drop-zone" id="dropZone">
+              <div class="fz-icon">☁</div>
+              <div class="fz-main">Нажмите или перетащите файлы</div>
+              <div class="fz-sub">PDF, DOCX, HTML — можно несколько сразу</div>
+              <input type="file" name="files" multiple required id="fileInput" />
+            </div>
+            <div id="filePreviewList" class="file-preview-list"></div>
+          </div>
+
+          <div class="adv-toggle" id="advToggle">
+            <span class="adv-chevron">▶</span>
+            Дополнительные настройки
+          </div>
+          <div class="adv-body" id="advBody">
+            <div class="field">
+              <label>Ministral URL</label>
+              <input type="url" name="ministral_url" class="input-text" placeholder="http://localhost:11434/api" />
+            </div>
+            <div class="field">
+              <label>Ministral model</label>
+              <input type="text" name="ministral_model" class="input-text" placeholder="ministral-3:3b" />
+            </div>
+            <div class="field">
+              <label>Docling URL</label>
+              <input type="url" name="docling_base" class="input-text" value="http://localhost:5001" />
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn" id="submitBtn">🚀 Запустить анализ</button>
+        </form>
+      </div>
+
+      {% endif %}
+
+    </div><!-- /main-inner -->
+  </main>
+
+</div><!-- /app-layout -->
+
+<script>hljs.configure({languages: ['json']});</script>
+<script>
+(function () {
+  // ─── File drop zone & preview ─────────────────────────────────────────────
+  var fileInput    = document.getElementById('fileInput');
+  var filePreview  = document.getElementById('filePreviewList');
+  var dropZone     = document.getElementById('dropZone');
+
+  function renderFilePreviews(fileList) {
+    if (!filePreview) return;
+    filePreview.innerHTML = '';
+    Array.from(fileList || []).forEach(function (f) {
+      var c = document.createElement('div');
+      c.className = 'fpc';
+      c.textContent = '📄 ' + f.name;
+      filePreview.appendChild(c);
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function () { renderFilePreviews(fileInput.files); });
+  }
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', function ()  { dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener('drop', function (e) {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      if (e.dataTransfer && e.dataTransfer.files) {
+        fileInput.files = e.dataTransfer.files;
+        renderFilePreviews(fileInput.files);
+      }
+    });
+  }
+
+  // ─── Advanced settings toggle ──────────────────────────────────────────────
+  var advToggle = document.getElementById('advToggle');
+  var advBody   = document.getElementById('advBody');
+  if (advToggle && advBody) {
+    advToggle.addEventListener('click', function () {
+      var open = advBody.classList.toggle('open');
+      advToggle.classList.toggle('open', open);
+    });
+  }
+
+  // ─── Submit button loading state ──────────────────────────────────────────
+  var uploadForm = document.getElementById('uploadForm');
+  var submitBtn  = document.getElementById('submitBtn');
+  if (uploadForm && submitBtn) {
+    uploadForm.addEventListener('submit', function () {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Загрузка…';
+    });
+  }
+
+  // ─── Task view ────────────────────────────────────────────────────────────
+  var taskId = "{{ task_id|default('') }}";
+  if (!taskId) return;
+
+  var logs        = document.getElementById('logs');
+  var statusBadge = document.getElementById('statusBadge');
+  var errEl       = document.getElementById('error');
+  var download    = document.getElementById('download');
+  var codeEl      = document.getElementById('jsonCode');
+  var resultCard  = document.getElementById('resultCard');
+  var rawCard     = document.getElementById('rawCard');
+  var rawDetails  = document.getElementById('rawDetails');
+  var rawPreview  = document.getElementById('rawPreview');
+  var copyBtn     = document.getElementById('copyBtn');
+  var rawFetched  = false;
+
+  function clearLogEmpty() {
+    if (logs) logs.querySelectorAll('.log-empty').forEach(function (e) { e.remove(); });
+  }
+
+  function appendLog(line) {
+    if (!logs) return;
+    clearLogEmpty();
+    var el = document.createElement('div');
+    el.className = 'log-line';
+    el.textContent = line;
+    logs.appendChild(el);
+    logs.scrollTop = logs.scrollHeight;
+  }
+
+  function setStatus(st) {
+    if (statusBadge) { statusBadge.textContent = st; statusBadge.className = 'badge badge-' + st + ' badge-lg'; }
+    // also update sidebar card badge if active
+    var sb = document.querySelector('.task-card.active .badge');
+    if (sb) { sb.textContent = st; sb.className = 'badge badge-' + st; }
+  }
+
+  // highlight any SSR-rendered JSON
+  if (codeEl && codeEl.textContent && codeEl.textContent.trim() && window.hljs) {
+    hljs.highlightElement(codeEl);
+  }
+
+  // copy button
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      var text = codeEl ? codeEl.textContent : '';
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(function () {
+        copyBtn.classList.add('copied'); copyBtn.textContent = 'Скопировано';
+        setTimeout(function () { copyBtn.classList.remove('copied'); copyBtn.textContent = 'Копировать'; }, 1800);
+      }).catch(function () {
+        try {
+          var r = document.createRange(); r.selectNodeContents(codeEl);
+          var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+          document.execCommand('copy'); s.removeAllRanges();
+          copyBtn.classList.add('copied'); copyBtn.textContent = 'Скопировано';
+          setTimeout(function () { copyBtn.classList.remove('copied'); copyBtn.textContent = 'Копировать'; }, 1800);
+        } catch (e) { alert('Копирование не поддерживается'); }
+      });
+    });
+  }
+
+  // lazy-load raw response
+  if (rawDetails) {
+    rawDetails.addEventListener('toggle', async function () {
+      if (rawDetails.open && !rawFetched && taskId) {
+        rawPreview.textContent = 'Загрузка…';
+        try {
+          var resp = await fetch('/raw/' + taskId);
+          rawPreview.textContent = resp.ok ? (await resp.text() || '(пусто)') : 'Ошибка: ' + resp.status;
+          rawFetched = true;
+        } catch (e) { rawPreview.textContent = 'Ошибка: ' + String(e); }
+      }
+    });
+  }
+
+  // WebSocket
+  var proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+  var ws = new WebSocket(proto + '://' + location.host + '/ws/' + taskId);
+
+  ws.onmessage = function (ev) {
+    try {
+      var msg = JSON.parse(ev.data);
+
+      if (msg.type === 'log' && msg.text) {
+        appendLog(msg.text);
+      }
+
+      if (msg.type === 'status' && msg.status) {
+        setStatus(msg.status);
+        if (msg.error && errEl) { errEl.textContent = msg.error; errEl.style.display = 'block'; }
+      }
+
+      if (msg.type === 'result' && msg.download) {
+        download.href = msg.download;
+        download.style.display = 'inline-flex';
+        if (rawCard) rawCard.style.display = 'block';
+      }
+
+      if (msg.type === 'result_data' && msg.json) {
+        try {
+          var data = (typeof msg.json === 'string') ? JSON.parse(msg.json) : msg.json;
+          codeEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+          codeEl.textContent = String(msg.json);
+        }
+        if (window.hljs) hljs.highlightElement(codeEl);
+        if (resultCard) resultCard.style.display = 'block';
+        if (rawCard) rawCard.style.display = 'block';
+      }
+    } catch (e) {
+      appendLog(String(ev.data));
+    }
+  };
+
+  ws.onclose = function () {
+    if (logs && logs.textContent && logs.textContent.trim()) appendLog('[WebSocket закрыт]');
+  };
+})();
+</script>
+</body>
+</html>

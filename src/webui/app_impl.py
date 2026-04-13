@@ -1,0 +1,287 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict
+
+from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+
+from core import analyze_files
+
+
+@dataclass
+class TaskState:
+    id: str
+    status: str = "created"
+    logs: list[str] = field(default_factory=list)
+    parsed: Any = None
+    result_path: str | None = None
+    prompt_path: str | None = None
+    raw_path: str | None = None
+    error: str | None = None
+    files: list[str] = field(default_factory=list)
+
+
+app = FastAPI(title="Tender Alchemist Web")
+
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+UPLOAD_ROOT = Path("data/uploads")
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+
+TASKS: Dict[str, TaskState] = {}
+WS_CLIENTS: Dict[str, set[WebSocket]] = {}
+# session_id -> set(task_id)
+SESSIONS: Dict[str, set[str]] = {}
+MAIN_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    global MAIN_LOOP
+    MAIN_LOOP = asyncio.get_running_loop()
+
+
+async def _broadcast(task_id: str, payload: dict[str, Any]) -> None:
+    clients = WS_CLIENTS.get(task_id, set()).copy()
+    for ws in clients:
+        try:
+            await ws.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            try:
+                WS_CLIENTS.get(task_id, set()).discard(ws)
+            except Exception:
+                pass
+
+
+def _schedule_broadcast(task_id: str, payload: dict[str, Any]) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_broadcast(task_id, payload))
+        return
+    except RuntimeError:
+        pass
+
+    if MAIN_LOOP is not None and not MAIN_LOOP.is_closed():
+        coro = _broadcast(task_id, payload)
+        try:
+            asyncio.run_coroutine_threadsafe(coro, MAIN_LOOP)
+        except Exception:
+            coro.close()
+
+
+def _append_log(task_id: str, line: str) -> None:
+    state = TASKS[task_id]
+    state.logs.append(line)
+    _schedule_broadcast(task_id, {"type": "log", "text": line})
+
+
+async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | None, ministral_model: str | None, docling_base: str | None) -> None:
+    state = TASKS[task_id]
+    state.status = "running"
+    await _broadcast(task_id, {"type": "status", "status": state.status})
+    try:
+        # Run the analyzer in a background thread so the FastAPI event loop
+        # stays free to deliver WebSocket broadcasts in real time.
+        loop = asyncio.get_running_loop()
+
+        # Thread-safe send_log: appends the line to state and immediately
+        # schedules a WS broadcast on the MAIN loop via run_coroutine_threadsafe.
+        # This is the key to real-time streaming: we do NOT use asyncio.run() inside
+        # the thread (which would create a nested loop and break WS delivery).
+        def send_log_threadsafe(line: str) -> None:
+            TASKS[task_id].logs.append(line)
+            asyncio.run_coroutine_threadsafe(
+                _broadcast(task_id, {"type": "log", "text": line}),
+                loop,
+            )
+
+        from .analysis_worker import run_analysis as web_run
+
+        result = await loop.run_in_executor(
+            None,
+            lambda: web_run(task_id, file_paths, send_log_threadsafe, ministral_url, ministral_model, docling_base),
+        )
+
+        state.status = "done"
+        state.parsed = result.get("parsed")
+        state.result_path = result.get("result_path")
+        state.prompt_path = result.get("prompt_path")
+        state.raw_path = result.get("raw_path")
+        await _broadcast(task_id, {"type": "status", "status": state.status})
+        try:
+            await _broadcast(task_id, {"type": "result_data", "json": state.parsed})
+        except Exception:
+            pass
+        await _broadcast(task_id, {"type": "result", "download": f"/download/{task_id}"})
+    except Exception as e:
+        state.status = "failed"
+        state.error = str(e)
+        _append_log(task_id, f"❌ Ошибка: {e}")
+        await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request, task_id: str | None = None):
+    # Manage session cookie
+    session_id = request.cookies.get("tender_session")
+    created_new_session = False
+    if not session_id:
+        session_id = uuid.uuid4().hex
+        SESSIONS.setdefault(session_id, set())
+        created_new_session = True
+
+    # Build user's task list for the template
+    my_task_ids = list(SESSIONS.get(session_id, set()))
+    my_tasks = []
+    for tid in my_task_ids:
+        st = TASKS.get(tid)
+        my_tasks.append({"id": tid, "status": st.status if st else "unknown", "files": st.files if st else []})
+
+    context: dict[str, Any] = {"request": request, "my_tasks": my_tasks}
+
+    if task_id:
+        # Only show task if it belongs to this session
+        if task_id not in SESSIONS.get(session_id, set()):
+            context.update(task_id=task_id, status="not_found", initial_logs="", initial_json="", download_url="", error="Task not found")
+            response = TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
+            if created_new_session:
+                response.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
+            return response
+
+        state = TASKS.get(task_id)
+        if state:
+            initial_logs = "\n".join(state.logs)
+            try:
+                initial_json = json.dumps(state.parsed, ensure_ascii=False, indent=2) if state.parsed is not None else ""
+            except Exception:
+                initial_json = ""
+            download_url = f"/download/{task_id}" if state.result_path else ""
+            context.update(
+                task_id=task_id,
+                status=state.status,
+                initial_logs=initial_logs,
+                initial_json=initial_json,
+                download_url=download_url,
+                raw_available=bool(state.raw_path),
+                error=state.error or "",
+                task_files=state.files,
+            )
+
+    response = TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
+    if created_new_session:
+        response.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
+    return response
+
+
+@app.post("/analyze")
+async def start_analyze(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    ministral_url: str = Form(default=""),
+    ministral_model: str = Form(default=""),
+    docling_base: str = Form(default="http://localhost:5001"),
+):
+    task_id = uuid.uuid4().hex
+    task_dir = UPLOAD_ROOT / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    saved: list[str] = []
+    for f in files:
+        safe_name = (f.filename or "file").replace("/", "_").replace("\\", "_")
+        out_path = task_dir / safe_name
+        content = await f.read()
+        out_path.write_bytes(content)
+        saved.append(str(out_path))
+
+    TASKS[task_id] = TaskState(id=task_id, files=[f.filename or "file" for f in files])
+    asyncio.create_task(_run_task(task_id, saved, ministral_url or None, ministral_model or None, docling_base or None))
+    # Associate task with session
+    session_id = request.cookies.get("tender_session")
+    created_new_session = False
+    if not session_id:
+        session_id = uuid.uuid4().hex
+        created_new_session = True
+    SESSIONS.setdefault(session_id, set()).add(task_id)
+
+    redirect = RedirectResponse(url=f"/?task_id={task_id}", status_code=303)
+    if created_new_session:
+        redirect.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
+    return redirect
+
+
+@app.get("/task/{task_id}")
+async def task_page(request: Request, task_id: str):
+    # Redirect to index; index will enforce session ownership
+    return RedirectResponse(url=f"/?task_id={task_id}", status_code=303)
+
+
+@app.websocket("/ws/{task_id}")
+async def ws_task(task_id: str, websocket: WebSocket):
+
+    # Accept connections without enforcing the session cookie. This makes
+    # the WS connection more robust across redirects and clients while the
+    # task is running. If task doesn't exist, respond with not_found.
+    await websocket.accept()
+    if task_id not in TASKS:
+        await websocket.send_text(json.dumps({"type": "status", "status": "not_found"}, ensure_ascii=False))
+        await websocket.close()
+        return
+
+    WS_CLIENTS.setdefault(task_id, set()).add(websocket)
+    state = TASKS[task_id]
+
+    try:
+        await websocket.send_text(json.dumps({"type": "status", "status": state.status, "error": state.error}, ensure_ascii=False))
+        for line in state.logs:
+            await websocket.send_text(json.dumps({"type": "log", "text": line}, ensure_ascii=False))
+        if state.parsed is not None:
+            await websocket.send_text(json.dumps({"type": "result_data", "json": state.parsed}, ensure_ascii=False))
+        if state.result_path:
+            await websocket.send_text(json.dumps({"type": "result", "download": f"/download/{task_id}"}, ensure_ascii=False))
+
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        WS_CLIENTS.get(task_id, set()).discard(websocket)
+
+
+@app.get("/download/{task_id}")
+async def download_result(task_id: str):
+    state = TASKS.get(task_id)
+    if not state or not state.result_path:
+        return HTMLResponse("Result is not ready", status_code=404)
+    path = Path(state.result_path)
+    if not path.exists():
+        return HTMLResponse("Result file is missing", status_code=404)
+    return FileResponse(path=str(path), filename=path.name, media_type="application/json")
+
+
+@app.get("/raw/{task_id}")
+async def raw_response(request: Request, task_id: str):
+    # Enforce session-based access to raw AI response
+    session_id = request.cookies.get("tender_session")
+    if not session_id or task_id not in SESSIONS.get(session_id, set()):
+        return HTMLResponse("Not found", status_code=404)
+
+    state = TASKS.get(task_id)
+    if not state or not state.raw_path:
+        return HTMLResponse("Raw response not available", status_code=404)
+
+    path = Path(state.raw_path)
+    if not path.exists():
+        return HTMLResponse("Raw file is missing", status_code=404)
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
+        return HTMLResponse("Failed to read raw file", status_code=500)
+
+    return HTMLResponse(content=text, media_type="text/plain")

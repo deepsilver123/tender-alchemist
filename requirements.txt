@@ -12,3 +12,7 @@ beautifulsoup4
 urllib3==1.26.18
 chardet==5.2.0
 charset-normalizer==3.3.2
+fastapi
+uvicorn
+jinja2
+python-multipart

@@ -1,0 +1,316 @@
+[
+  {
+    "id": "storage.ssd",
+    "name": "SSD-Диск",
+    "aliases": [
+      "ssd",
+      "ssd диск",
+      "твердотелый накопитель",
+      "ssd-диск",
+      "ssd накопитель",
+      "nvme ssd",
+      "m.2 nvme",
+      "m2 nvme",
+      "sata ssd",
+      "sas ssd",
+      "накопитель данных",
+      "накопитель данных внутренний",
+      "накопитель ssd",
+      "накопитель внутренний"
+    ]
+  },
+  {
+    "id": "storage.hdd",
+    "name": "HDD-Диск",
+    "aliases": ["hdd", "жёсткий диск", 
+        "жесткий диск", 
+        "винчестер", 
+        "hdd диск", 
+        "hdd накопитель", 
+        "накопитель hdd", 
+        "накопитель данных", 
+        "накопитель данных внутренний"
+    ]
+  },
+  {
+    "id": "storage.nas",
+    "name": "NAS (сетевое хранилище)",
+    "aliases": ["nas", "сетевое хранилище", "network attached storage", "nas устройство"]
+  },
+  {
+    "id": "memory.ram",
+    "name": "Оперативная память (RAM)",
+    "aliases": [
+      "оперативная память",
+      "ram",
+      "озу",
+      "оперативка",
+      "модуль памяти",
+      "модуль памяти ddr4",
+      "модуль памяти ddr5",
+      "модуль ddr4",
+      "модуль ddr5",
+      "модуль памяти ddr4 8gb"
+    ]
+  },
+  {
+    "id": "memory.ram.ecc",
+    "name": "Оперативная память ECC (серверная)",
+    "aliases": ["оперативная память ecc", "ecc ram", "ram ecc", "озу ecc", "серверная память ecc"]
+  },
+  {
+    "id": "cpu",
+    "name": "Процессор (CPU)",
+    "aliases": ["процессор", "cpu", "центральный процессор"]
+  },
+  {
+    "id": "cpu.server",
+    "name": "Серверный процессор",
+    "aliases": ["серверный процессор", "процессор для сервера"]
+  },
+  {
+    "id": "motherboard",
+    "name": "Материнская плата",
+    "aliases": ["материнская плата", "motherboard", "mobo"]
+  },
+  {
+    "id": "motherboard.server",
+    "name": "Серверная материнская плата",
+    "aliases": ["серверная материнская плата", "server motherboard"]
+  },
+  {
+    "id": "video.gpu",
+    "name": "Видеокарта",
+    "aliases": ["видеокарта", "gpu", "графическая карта", "графический ускоритель"]
+  },
+  {
+    "id": "power.supply",
+    "name": "Блок питания",
+    "aliases": ["блок питания", "psu", "power supply"]
+  },
+  {
+    "id": "chassis.pc",
+    "name": "Корпус ПК",
+    "aliases": ["корпус", "корпус системного блока", "pc case", "системный блок"]
+  },
+  {
+    "id": "cooling.cpu",
+    "name": "Кулер процессора",
+    "aliases": [
+      "кулер процессора",
+      "cpu cooler",
+      "охлаждение процессора",
+      "кулер",
+      "кулер для процессора",
+      "вентилятор для процессора",
+    ]
+  },
+  {
+    "id": "cooling.case",
+    "name": "Корпусный вентилятор",
+    "aliases": ["вентилятор корпуса", "корпусный вентилятор", "case fan"]
+  },
+  {
+    "id": "thermal.paste",
+    "name": "Теплопаста / термопаста",
+    "aliases": ["теплопаста", "термопаста", "thermal paste"]
+  },
+  {
+    "id": "raid.controller",
+    "name": "RAID-контроллер",
+    "aliases": ["raid контроллер", "raid card", "контроллер raid"]
+  },
+  {
+    "id": "hba.adapter",
+    "name": "HBA / HBA-адаптер",
+    "aliases": ["hba", "host bus adapter", "адаптер hba"]
+  },
+  {
+    "id": "server.chassis",
+    "name": "Серверное шасси",
+    "aliases": ["серверный корпус", "шасси сервера", "server chassis"]
+  },
+  {
+    "id": "server.rack",
+    "name": "Серверная стойка / крепление 19",
+    "aliases": ["серверная стойка", "стойка 19", "rack 19", "rack mount"]
+  },
+  {
+    "id": "network.switch",
+    "name": "Коммутатор (Switch)",
+    "aliases": ["коммутатор", "switch", "сетевой коммутатор", "коммутатор poe", "poe switch"]
+  },
+  {
+    "id": "network.router",
+    "name": "Маршрутизатор (Router)",
+    "aliases": ["роутер", "маршрутизатор", "router"]
+  },
+  {
+    "id": "network.ap",
+    "name": "Точка доступа (Access Point)",
+    "aliases": ["точка доступа", "access point", "ap", "wi-fi точка доступа"]
+  },
+  {
+    "id": "network.sfp",
+    "name": "SFP / оптический трансивер",
+    "aliases": ["sfp", "sfp+", "оптический трансивер", "трансивер"]
+  },
+  {
+    "id": "network.cable",
+    "name": "Сетевой кабель / оптика",
+    "aliases": ["витая пара", "кабель витая пара", "ethernet cable", "lan cable", "cat5e", "cat6", "cat6a", "оптический кабель", "fiber optic cable"]
+  },
+  {
+    "id": "network.patch_panel",
+    "name": "Патч‑панель",
+    "aliases": ["патч-панель", "patch panel", "панель коммутационная"]
+  },
+  {
+    "id": "network.firewall",
+    "name": "Межсетевой экран / Firewall",
+    "aliases": ["фаервол", "межсетевой экран", "firewall", "аппаратный файрвол"]
+  },
+  {
+    "id": "ups",
+    "name": "Источник бесперебойного питания (ИБП)",
+    "aliases": ["ибп", "ups", "источник бесперебойного питания"]
+  },
+  {
+    "id": "printer.laser",
+    "name": "Лазерный принтер",
+    "aliases": ["лазерный принтер", "laser printer", "принтер лазерный"]
+  },
+  {
+    "id": "printer.inkjet",
+    "name": "Струйный принтер",
+    "aliases": ["струйный принтер", "inkjet printer", "принтер струйный"]
+  },
+  {
+    "id": "printer.mfu",
+    "name": "МФУ (принтер/сканер)",
+    "aliases": ["мфу", "многофункциональное устройство", "multifunction printer"]
+  },
+  {
+    "id": "scanner",
+    "name": "Сканер документов",
+    "aliases": ["сканер", "сканер документов", "document scanner", "планшетный сканер", "sheet-fed scanner"]
+  },
+  {
+    "id": "consumable.toner",
+    "name": "Картридж / тонер",
+    "aliases": ["картридж", "тонер", "тонер-картридж", "cartridge"]
+  },
+  {
+    "id": "consumable.drum",
+    "name": "Барабан (drum unit)",
+    "aliases": ["барабан", "фотобарабан", "drum unit"]
+  },
+  {
+    "id": "consumable.paper",
+    "name": "Бумага офисная",
+    "aliases": ["бумага", "офисная бумага", "a4 бумага", "бумага a4"]
+  },
+  {
+    "id": "phone.ip",
+    "name": "IP-телефон / SIP-аппарат",
+    "aliases": ["ip телефон", "sip телефон", "sip phone", "voip телефон"]
+  },
+  {
+    "id": "pbx.ip",
+    "name": "IP‑АТС / IP‑PBX",
+    "aliases": ["ip-атс", "ip атс", "ip pbx", "атс", "автоматическая телефонная станция"]
+  },
+  {
+    "id": "voip.gateway",
+    "name": "VoIP-шлюз / аналоговый шлюз",
+    "aliases": ["voip шлюз", "шлюз voip", "voip gateway", "analog gateway"]
+  },
+  {
+    "id": "headset",
+    "name": "Гарнитура",
+    "aliases": ["гарнитура", "headset", "usb гарнитура", "гарнитура для телефонии"]
+  },
+  {
+    "id": "monitor",
+    "name": "Монитор",
+    "aliases": ["монитор", "display", "жк монитор", "lcd monitor", "led монитор"]
+  },
+  {
+    "id": "keyboard",
+    "name": "Клавиатура",
+    "aliases": ["клавиатура", "keyboard", "usb клавиатура", "механическая клавиатура"]
+  },
+  {
+    "id": "mouse",
+    "name": "Мышь",
+    "aliases": ["мышь", "мышка", "mouse", "беспроводная мышь", "optical mouse"]
+  },
+  {
+    "id": "webcam",
+    "name": "Вебкамера",
+    "aliases": ["вебкамера", "веб-камера", "webcam", "камера для видеоконференций"]
+  },
+  {
+    "id": "microphone",
+    "name": "Микрофон",
+    "aliases": ["микрофон", "usb микрофон", "микрофон для конференций"]
+  },
+  {
+    "id": "kvm.switch",
+    "name": "KVM-переключатель",
+    "aliases": ["kvm", "kvm переключатель", "kvm switch"]
+  },
+  {
+    "id": "docking.station",
+    "name": "Док-станция",
+    "aliases": ["док-станция", "док станция", "docking station", "usb-c док"]
+  },
+  {
+    "id": "software.license",
+    "name": "Лицензия на программное обеспечение",
+    "aliases": ["лицензия", "лицензия на ПО", "software license"]
+  },
+  {
+    "id": "storage.backup.tape",
+    "name": "Ленточный накопитель / Tape",
+    "aliases": ["ленточный накопитель", "tape drive", "ленточная библиотека", "tape library"]
+  },
+  {
+    "id": "peripheral.usb_hub",
+    "name": "USB-хаб",
+    "aliases": ["usb хаб", "usb hub", "распределитель usb"]
+  },
+  {
+    "id": "camera.ip",
+    "name": "IP-камера / видеонаблюдение",
+    "aliases": ["ip камера", "видеокамера", "камера видеонаблюдения", "cctv камера"]
+  }
+  ,
+  {
+    "id": "computer.allinone",
+    "name": "Моноблок (All-in-One ПК)",
+    "aliases": ["моноблок", "моноблок ПК", "all-in-one", "all in one", "aio", "all-in-one pc", "aio pc", "all-in-one компьютер"]
+  }
+  ,
+  {
+    "id": "computer.laptop",
+    "name": "Ноутбук",
+    "aliases": ["ноутбук", "лэптоп", "ноут", "laptop", "notebook", "portable laptop"]
+  }
+  ,
+  {
+    "id": "computer.desktop",
+    "name": "Настольный ПК / Системный блок",
+    "aliases": ["персональный компьютер", "настольный компьютер", "системный блок", "desktop", "desktop pc", "стационарный пк", "пк"]
+  },
+  {
+    "id": "computer.mini",
+    "name": "Мини‑ПК / NUC",
+    "aliases": ["миниматюрный персональный компьютер", "мини-пк", "mini pc", "mini-pc", "nuc", "intel nuc", "компактный пк", "sff", "small form factor"]
+  },
+  {
+    "id": "computer.thinclient",
+    "name": "Тонкий клиент",
+    "aliases": ["тонкий клиент", "thin client", "thick client" ]
+  }
+]
