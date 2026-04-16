@@ -20,12 +20,31 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from webui.app_impl import app
+import os
+
+# Determine defaults with precedence: CLI args > ENV > core.config > hardcoded
+default_host = "127.0.0.1"
+default_port = 8001
+try:
+    from core import config as core_config
+    default_host = os.environ.get("WEBUI_HOST", getattr(core_config, "WEBUI_HOST", default_host))
+    try:
+        default_port = int(os.environ.get("WEBUI_PORT", getattr(core_config, "WEBUI_PORT", default_port)))
+    except (TypeError, ValueError):
+        default_port = int(os.environ.get("WEBUI_PORT", default_port))
+except Exception:
+    # core.config may be unavailable in some contexts; fall back to env/hardcoded
+    default_host = os.environ.get("WEBUI_HOST", default_host)
+    try:
+        default_port = int(os.environ.get("WEBUI_PORT", default_port))
+    except (TypeError, ValueError):
+        default_port = 8001
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", default=8001, type=int)
+    parser.add_argument("--host", default=default_host)
+    parser.add_argument("--port", default=default_port, type=int)
     parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
 
