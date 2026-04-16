@@ -6,6 +6,9 @@
 !/data/
 !/data/**
 
+!/scripts/
+!/scripts/**
+
 # Ignore Python cache inside allowed dirs
 # Ignore Python bytecode and cache
 __pycache__/
