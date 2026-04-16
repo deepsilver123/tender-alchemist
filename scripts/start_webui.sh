@@ -47,16 +47,62 @@ ensure_venv() {
   if [ ! -d "$VENV_DIR" ]; then
     log "Creating virtualenv at $VENV_DIR"
     python3 -m venv "$VENV_DIR"
+    CREATED_VENV=1
   fi
   # shellcheck disable=SC1090
   source "$VENV_DIR/bin/activate"
   pip install -U pip setuptools wheel
+
+  # Install requirements only when venv was just created or requirements.txt changed
+  NEED_INSTALL=0
   if [ -f "$REQ_FILE" ]; then
-    log "Installing Python requirements from $REQ_FILE"
-    pip install -r "$REQ_FILE"
+    if [ "${CREATED_VENV:-0}" -eq 1 ]; then
+      NEED_INSTALL=1
+    else
+      # compute a hash of requirements.txt (prefer sha256sum, fallback to shasum)
+      if command -v sha256sum >/dev/null 2>&1; then
+        REQ_HASH=$(sha256sum "$REQ_FILE" | awk '{print $1}')
+      elif command -v shasum >/dev/null 2>&1; then
+        REQ_HASH=$(shasum -a 256 "$REQ_FILE" | awk '{print $1}')
+      else
+        # final fallback: use mtime
+        REQ_HASH=$(stat -c %Y "$REQ_FILE" 2>/dev/null || echo "")
+      fi
+      STORED_HASH_FILE="$VENV_DIR/.req_hash"
+      STORED_HASH=""
+      if [ -f "$STORED_HASH_FILE" ]; then
+        STORED_HASH=$(cat "$STORED_HASH_FILE")
+      fi
+      if [ "$REQ_HASH" != "$STORED_HASH" ]; then
+        NEED_INSTALL=1
+      fi
+    fi
+  else
+    # no requirements file; install core packages only if venv was created
+    if [ "${CREATED_VENV:-0}" -eq 1 ]; then
+      NEED_INSTALL=1
+    fi
   fi
-  log "Ensuring uvicorn[standard], websockets and wsproto are installed"
-  pip install -U "uvicorn[standard]" websockets wsproto
+
+  if [ "$NEED_INSTALL" -eq 1 ]; then
+    if [ -f "$REQ_FILE" ]; then
+      log "Installing Python requirements from $REQ_FILE"
+      pip install -r "$REQ_FILE"
+    else
+      log "No requirements.txt found; skipping pip install -r"
+    fi
+    log "Ensuring uvicorn[standard], websockets and wsproto are installed"
+    pip install -U "uvicorn[standard]" websockets wsproto
+    # store current hash so we can skip on next runs
+    if [ -f "$REQ_FILE" ]; then
+      echo "$REQ_HASH" > "$VENV_DIR/.req_hash"
+    else
+      echo "" > "$VENV_DIR/.req_hash"
+    fi
+  else
+    log "Dependencies up-to-date; skipping pip install"
+  fi
+
   mkdir -p "$LOG_DIR"
 }
 
