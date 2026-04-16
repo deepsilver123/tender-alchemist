@@ -74,9 +74,9 @@ start_server() {
   ensure_venv
   # choose runner (scripts/run_webui.py preferred)
   if [ -f "$RUNNER_SCRIPT" ]; then
-    RUN_CMD="$VENV_DIR/bin/python $RUNNER_SCRIPT --host $HOST --port $PORT"
+    RUN_ARR=("$VENV_DIR/bin/python" "$RUNNER_SCRIPT" "--host" "$HOST" "--port" "$PORT")
   elif [ -f "$ROOT_RUNNER" ]; then
-    RUN_CMD="$VENV_DIR/bin/python $ROOT_RUNNER"
+    RUN_ARR=("$VENV_DIR/bin/python" "$ROOT_RUNNER")
     export WEBUI_HOST="$HOST"
     export WEBUI_PORT="$PORT"
   else
@@ -85,11 +85,11 @@ start_server() {
   fi
 
   if [ "$NO_DAEMON" -eq 1 ]; then
-    log "Starting server in foreground: $RUN_CMD"
-    exec $RUN_CMD
+    log "Starting server in foreground: ${RUN_ARR[*]}"
+    exec "${RUN_ARR[@]}"
   else
-    log "Starting server (daemon) with command: $RUN_CMD"
-    nohup $RUN_CMD > "$OUTLOG" 2>&1 &
+    log "Starting server (daemon) with command: ${RUN_ARR[*]}"
+    nohup "${RUN_ARR[@]}" > "$OUTLOG" 2>&1 &
     echo $! > "$PIDFILE"
     sleep 0.5
     if kill -0 "$(cat "$PIDFILE")" >/dev/null 2>&1; then
