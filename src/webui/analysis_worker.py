@@ -35,6 +35,7 @@ def run_analysis(
         MINISTRAL_TEMPERATURE,
         MINISTRAL_NUM_CTX,
         MINISTRAL_NUM_PREDICT,
+        LOG_DIR,
     )
     from core.ministral_client import call_ministral
     from core.json_utils import extract_json_from_text
@@ -112,6 +113,15 @@ def run_analysis(
         send_log(f"📁 prompt сохранён: {prompt_file}")
     except Exception:
         prompt_file = None
+    # Also save prompt copy to LOG_DIR/prompts/<task_id>/prompt.txt
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_prompt_dir = LOG_DIR / "prompts" / task_id
+        log_prompt_dir.mkdir(parents=True, exist_ok=True)
+        (log_prompt_dir / "prompt.txt").write_text(full_prompt, encoding="utf-8")
+        send_log(f"📁 prompt скопирован в лог: {log_prompt_dir / 'prompt.txt'}")
+    except Exception as e:
+        send_log(f"⚠️ Не удалось сохранить prompt в лог: {e}")
 
     # ── Этап 4: вызов модели ─────────────────────────────────────────────
     send_log("📌 Этап 4/5: отправка prompt в Ministral API")
@@ -146,6 +156,15 @@ def run_analysis(
             send_log(f"📁 Сырой ответ сохранён: {raw_file}")
         except Exception:
             raw_file = None
+        # Also save raw response to LOG_DIR/raw/<task_id>/raw.txt
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            log_raw_dir = LOG_DIR / "raw" / task_id
+            log_raw_dir.mkdir(parents=True, exist_ok=True)
+            (log_raw_dir / "raw.txt").write_text(model_resp, encoding="utf-8")
+            send_log(f"📁 Raw скопирован в лог: {log_raw_dir / 'raw.txt'}")
+        except Exception as e:
+            send_log(f"⚠️ Не удалось сохранить raw в лог: {e}")
 
         send_log("Извлекаю JSON из ответа модели")
         parsed = extract_json_from_text(model_resp) or {}
@@ -167,6 +186,17 @@ def run_analysis(
         send_log(f"✅ Результат сохранён: {out_file}")
     except Exception as e:
         send_log(f"❌ Ошибка сохранения: {e}")
+    else:
+        # Also save result copy to LOG_DIR/results/<task_id>/result.json
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            log_res_dir = LOG_DIR / "results" / task_id
+            log_res_dir.mkdir(parents=True, exist_ok=True)
+            with open(log_res_dir / "result.json", "w", encoding="utf-8") as fh:
+                json.dump(parsed, fh, ensure_ascii=False, indent=2)
+            send_log(f"📁 Результат скопирован в лог: {log_res_dir / 'result.json'}")
+        except Exception as e:
+            send_log(f"⚠️ Не удалось сохранить результат в лог: {e}")
 
     return {
         "parsed": parsed,

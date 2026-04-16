@@ -11,7 +11,11 @@ from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSock
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+import logging
 from core import analyze_files
+import requests
+from core.config import DATA_DIR, LOG_DIR, MINISTRAL_URL, DOCLING_URL
+import shutil
 
 
 @dataclass
@@ -31,8 +35,30 @@ app = FastAPI(title="Tender Alchemist Web")
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-UPLOAD_ROOT = Path("data/uploads")
+
+# Ensure data and log directories exist and configure logging to file
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_ROOT = DATA_DIR / "uploads"
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Configure 'tender' logger to write to LOG_DIR/webui.log
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    tender_logger = logging.getLogger("tender")
+    tender_logger.setLevel(logging.INFO)
+    # Avoid adding duplicate handlers if module reloaded
+    if not any(isinstance(h, logging.FileHandler) and str((LOG_DIR / 'webui.log')) in getattr(h, 'baseFilename', '') for h in tender_logger.handlers):
+        fh = logging.FileHandler(LOG_DIR / "webui.log", encoding='utf-8')
+        fh.setLevel(logging.INFO)
+        fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        fh.setFormatter(fmt)
+        tender_logger.addHandler(fh)
+except Exception:
+    # If logging setup fails, fall back silently (do not break startup)
+    try:
+        logging.getLogger("tender").exception("Не удалось настроить файл логов")
+    except Exception:
+        pass
 
 TASKS: Dict[str, TaskState] = {}
 WS_CLIENTS: Dict[str, set[WebSocket]] = {}
@@ -101,6 +127,40 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
                 loop,
             )
 
+        # Preflight: check external services (Ministral, Docling). If unreachable, abort.
+        tender_logger = logging.getLogger("tender")
+        effective_ministral = ministral_url or MINISTRAL_URL
+        effective_docling = docling_base or DOCLING_URL
+
+        def _service_up(url: str) -> tuple[bool, str]:
+            try:
+                resp = requests.get(url, timeout=5)
+                # treat server errors (5xx) and connection failures as down; other responses mean service reachable
+                if resp.status_code >= 500:
+                    return False, f"HTTP {resp.status_code}"
+                return True, f"HTTP {resp.status_code}"
+            except requests.RequestException as e:
+                return False, str(e)
+
+        unavailable = []
+        if effective_ministral:
+            ok, detail = _service_up(effective_ministral)
+            if not ok:
+                unavailable.append(("Ministral", effective_ministral, detail))
+        if effective_docling:
+            ok, detail = _service_up(effective_docling)
+            if not ok:
+                unavailable.append(("Docling", effective_docling, detail))
+
+        if unavailable:
+            msg = "; ".join(f"{n}({u}): {d}" for n, u, d in unavailable)
+            state.status = "failed"
+            state.error = f"Сервисы недоступны: {msg}"
+            _append_log(task_id, f"❌ {state.error}")
+            await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+            tender_logger.error("Preflight failed: %s", state.error)
+            return
+
         from .analysis_worker import run_analysis as web_run
 
         result = await loop.run_in_executor(
@@ -124,6 +184,18 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         state.error = str(e)
         _append_log(task_id, f"❌ Ошибка: {e}")
         await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+    finally:
+        # Clean up uploaded files to free disk space
+        try:
+            upload_dir = UPLOAD_ROOT / task_id
+            if upload_dir.exists():
+                shutil.rmtree(upload_dir)
+                tender_logger.info("Removed upload dir %s", upload_dir)
+        except Exception:
+            try:
+                tender_logger.exception("Failed to remove upload dir %s", upload_dir)
+            except Exception:
+                pass
 
 
 @app.get("/", response_class=HTMLResponse)

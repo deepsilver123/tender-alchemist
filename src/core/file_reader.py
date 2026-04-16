@@ -8,6 +8,8 @@ from core.docx_parser import extract_from_docx  # fallback parser now in core
 import subprocess
 import logging
 from bs4 import BeautifulSoup
+import concurrent.futures
+from typing import Callable, Iterable, List, Dict
 
 DOCLING_URL_ASYNC = "http://localhost:5001/v1/convert/file/async"
 DOCLING_STATUS_URL = "http://localhost:5001/v1/status/poll"
@@ -163,14 +165,11 @@ def process_with_docling(file_path: Path, from_format: str, docling_base_url: st
         logger = logging.getLogger("tender")
         try:
             logger.info(f"[Docling] Отправка файла {file_path.name} (формат: {from_format})")
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("tender").exception("[Docling] Failed to emit send-log for %s: %s", file_path.name, e)
         response = requests.post(_async_url, files=files, data=data, timeout=30)
         if response.status_code != 200:
-            try:
-                logger.error(f"[Docling] Ошибка: {response.status_code} {response.text}")
-            except Exception:
-                pass
+            logging.getLogger("tender").error(f"[Docling] Ошибка: {response.status_code} {response.text}", exc_info=True)
             return f"[Ошибка Docling: {response.status_code}] {response.text}"
 
         task_id = response.json().get('task_id')
@@ -186,10 +185,7 @@ def process_with_docling(file_path: Path, from_format: str, docling_base_url: st
             wait_time += 2
             status_resp = requests.get(f"{_status_url}/{task_id}", timeout=10)
             if status_resp.status_code != 200:
-                try:
-                    logger.warning(f"[Docling] Статус {status_resp.status_code} при polling")
-                except Exception:
-                    pass
+                logging.getLogger("tender").warning(f"[Docling] Статус {status_resp.status_code} при polling", exc_info=True)
                 continue
             status_data = status_resp.json()
             task_status = status_data.get('task_status')
@@ -201,23 +197,14 @@ def process_with_docling(file_path: Path, from_format: str, docling_base_url: st
                     if html_content:
                         return html_content
                     else:
-                        try:
-                            logger.warning("[Docling] Предупреждение: Docling не вернул HTML")
-                        except Exception:
-                            pass
+                        logging.getLogger("tender").warning("[Docling] Предупреждение: Docling не вернул HTML", exc_info=True)
                         return "[Предупреждение: Docling не вернул HTML]"
                 else:
-                    try:
-                        logger.error(f"[Docling] Ошибка получения результата: {result_resp.status_code}")
-                    except Exception:
-                        pass
+                    logging.getLogger("tender").error(f"[Docling] Ошибка получения результата: {result_resp.status_code}", exc_info=True)
                     return f"[Ошибка получения результата: {result_resp.status_code}]"
             elif task_status == 'failure':
                 error_msg = status_data.get('error_message', 'Неизвестная ошибка')
-                try:
-                    logger.error(f"[Docling] Ошибка обработки: {error_msg}")
-                except Exception:
-                    pass
+                logging.getLogger("tender").error(f"[Docling] Ошибка обработки: {error_msg}", exc_info=True)
                 return f"[Ошибка обработки: {error_msg}]"
         return "[Ошибка: таймаут]"
 
@@ -368,3 +355,50 @@ def extract_text_from_file(filepath: str, docling_base_url: str = None, cancel_c
                 return f"[Ошибка Docling: {response.status_code}] {response.text}"
         except Exception as e:
             return f"[Ошибка при обращении к Docling: {e}]"
+
+
+def extract_texts_from_files(
+    filepaths: Iterable[str],
+    docling_base_url: str = None,
+    cancel_checker: Callable[[], bool] | None = None,
+    max_workers: int = 4,
+    progress_cb: Callable[[str, str, float], None] | None = None,
+) -> List[str]:
+    """Extract text for multiple files in parallel using threads.
+
+    Returns a list of extracted texts in the same order as `filepaths`.
+
+    - `progress_cb(filepath, content, elapsed_sec)` is called for each completed file.
+    - `cancel_checker()` is polled before scheduling and between completions; if it
+      returns True the function will stop waiting for remaining tasks and return
+      results collected so far (preserving original ordering where possible).
+    """
+    fps = list(filepaths)
+    results: Dict[str, str] = {}
+    if callable(cancel_checker) and cancel_checker():
+        return ["[Отменено пользователем]" for _ in fps]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(extract_text_from_file, fp, docling_base_url, cancel_checker): fp for fp in fps}
+
+        for fut in concurrent.futures.as_completed(futures):
+            fp = futures[fut]
+            start = None
+            try:
+                # result may be long-running; capture it
+                content = fut.result()
+            except Exception as e:
+                content = f"[Ошибка извлечения: {e}]"
+            results[fp] = content
+            if callable(progress_cb):
+                try:
+                    progress_cb(fp, content, 0.0)
+                except Exception:
+                    pass
+
+            if callable(cancel_checker) and cancel_checker():
+                # Stop processing further results
+                break
+
+    # Return in original order, using empty string when missing
+    return [results.get(fp, "") for fp in fps]

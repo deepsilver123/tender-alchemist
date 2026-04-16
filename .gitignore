@@ -7,6 +7,11 @@
 !/data/**
 
 # Ignore Python cache inside allowed dirs
+# Ignore Python bytecode and cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
 src/**/__pycache__/
 src/**/*.pyc
 data/**/__pycache__/
@@ -23,3 +28,14 @@ logs/
 .idea/
 Thumbs.db
 !.vscode/settings.json
+
+# Local artifacts (ignore large generated files & secrets)
+data/uploads/
+results/
+logs/
+.venv/
+venv/
+.env
+*.log
+.pytest_cache/
+.mypy_cache/

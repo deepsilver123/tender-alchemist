@@ -60,25 +60,52 @@ class AnalysisWorker(QObject):
 
             all_html = ""
             read_start = time.time()
-            for index, fp in enumerate(self.file_paths, start=1):
-                if self._is_cancel_requested():
-                    self.finished.emit()
-                    return
-                file_name = os.path.basename(fp)
-                self.log.emit(f"[{index}/{len(self.file_paths)}] Читаю {file_name}...")
-                file_step_start = time.time()
-                if self.extract_text_func:
-                    content = self.extract_text_func(fp, self.docling_base, self._is_cancel_requested)
-                else:
-                    from core.file_reader import extract_text_from_file
 
-                    content = extract_text_from_file(fp, self.docling_base, self._is_cancel_requested)
-                if self._is_cancel_requested():
+            # If a custom extract_text_func was provided, keep sequential behaviour
+            if callable(self.extract_text_func):
+                for index, fp in enumerate(self.file_paths, start=1):
+                    if self._is_cancel_requested():
+                        self.finished.emit()
+                        return
+                    file_name = os.path.basename(fp)
+                    self.log.emit(f"[{index}/{len(self.file_paths)}] Читаю {file_name}...")
+                    file_step_start = time.time()
+                    content = self.extract_text_func(fp, self.docling_base, self._is_cancel_requested)
+                    if self._is_cancel_requested():
+                        self.finished.emit()
+                        return
+                    all_html += f"\n\n--- Файл: {os.path.basename(fp)} ---\n\n{content}\n"
+                    file_step_time = time.time() - file_step_start
+                    self.log.emit(f"✅ {file_name}: {file_step_time:.2f} сек, символов={len(content)}")
+            else:
+                # Use parallel extraction helper for built-in reader
+                from core.file_reader import extract_texts_from_files
+
+                def _progress_cb(fp: str, content: str, elapsed: float) -> None:
+                    try:
+                        name = os.path.basename(fp)
+                        self.log.emit(f"✅ {name}: extracted, символов={len(content)}")
+                    except Exception:
+                        pass
+
+                try:
+                    texts = extract_texts_from_files(
+                        self.file_paths,
+                        docling_base_url=self.docling_base,
+                        cancel_checker=self._is_cancel_requested,
+                        max_workers=4,
+                        progress_cb=_progress_cb,
+                    )
+                except Exception as e:
+                    self.log.emit(f"❌ Ошибка при чтении файлов: {e}")
                     self.finished.emit()
                     return
-                all_html += f"\n\n--- Файл: {os.path.basename(fp)} ---\n\n{content}\n"
-                file_step_time = time.time() - file_step_start
-                self.log.emit(f"✅ {file_name}: {file_step_time:.2f} сек, символов={len(content)}")
+
+                for fp, content in zip(self.file_paths, texts):
+                    if self._is_cancel_requested():
+                        self.finished.emit()
+                        return
+                    all_html += f"\n\n--- Файл: {os.path.basename(fp)} ---\n\n{content}\n"
             read_time = time.time() - read_start
             self.log.emit(f"✅ Этап 1/5 завершён: {read_time:.2f} сек")
 

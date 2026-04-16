@@ -1,10 +1,13 @@
 import asyncio
 import json
 import os
+import sys
+import logging
 from pathlib import Path
 
 from .json_utils import extract_json_from_text
 from .ministral_client import call_model
+from .config import LOG_DIR
 
 
 async def analyze_files(task_id: str, files: list, send_log, ministral_url: str | None = None, ministral_model: str | None = None, docling_base: str | None = None):
@@ -24,33 +27,47 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
     import logging
     try:
         loop = asyncio.get_running_loop()
-    except Exception:
+    except RuntimeError:
         loop = None
 
     class _ForwardHandler(logging.Handler):
         def emit(self, record):
             try:
-                msg = self.format(record)
-            except Exception:
-                msg = str(record)
-            try:
-                res = send_log(msg)
-                if asyncio.iscoroutine(res):
-                    if loop is not None:
-                        try:
-                            asyncio.run_coroutine_threadsafe(res, loop)
-                        except Exception:
-                            pass
-                else:
-                    if loop is not None:
-                        try:
-                            loop.call_soon_threadsafe(send_log, msg)
-                        except Exception:
-                            pass
-            except Exception:
                 try:
-                    if loop is not None:
-                        loop.call_soon_threadsafe(send_log, msg)
+                    msg = self.format(record)
+                except Exception:
+                    msg = str(record)
+                try:
+                    res = send_log(msg)
+                    if asyncio.iscoroutine(res):
+                        if loop is not None:
+                            try:
+                                asyncio.run_coroutine_threadsafe(res, loop)
+                            except Exception as e:
+                                # fallback to stderr to avoid recursive logging
+                                try:
+                                    sys.stderr.write(f"[ForwardHandler] run_coroutine_threadsafe failed: {e}\n")
+                                except Exception:
+                                    pass
+                    else:
+                        if loop is not None:
+                            try:
+                                loop.call_soon_threadsafe(send_log, msg)
+                            except Exception as e:
+                                try:
+                                    sys.stderr.write(f"[ForwardHandler] call_soon_threadsafe failed: {e}\n")
+                                except Exception:
+                                    pass
+                except Exception as e:
+                    # avoid using the 'tender' logger here to prevent recursion into this handler
+                    try:
+                        sys.stderr.write(f"[ForwardHandler] send_log failed: {e}\n")
+                    except Exception:
+                        pass
+            except Exception:
+                # last-resort: avoid raising from emit
+                try:
+                    sys.stderr.write("[ForwardHandler] unexpected emit failure\n")
                 except Exception:
                     pass
 
@@ -69,13 +86,15 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
                 try:
                     from .docx_parser import extract_from_docx
                     text = extract_from_docx(file_path)
-                except Exception:
+                except Exception as e:
+                    logging.getLogger("tender").exception("Ошибка парсинга DOCX %s: %s", file_path, e)
                     text = ''
             else:
                 try:
                     with open(file_path, 'r', encoding='utf-8') as fh:
                         text = fh.read()
-                except Exception:
+                except Exception as e:
+                    logging.getLogger("tender").exception("Ошибка чтения файла %s: %s", file_path, e)
                     text = ''
 
             combined_text_parts.append(text)
@@ -83,43 +102,98 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
         combined_text = '\n'.join(p for p in combined_text_parts if p)
         await _maybe_await(send_log("Сформирован общий текст, вызываю модель"))
 
+        # Ensure results folder for this task exists and save prompt there
+        out_dir = Path('results') / task_id
+        os.makedirs(out_dir, exist_ok=True)
+        prompt_file = out_dir / 'prompt.txt'
+        try:
+            prompt_file.write_text(combined_text, encoding='utf-8')
+            await _maybe_await(send_log(f"📁 prompt сохранён: {prompt_file}"))
+        except Exception as e:
+            logging.getLogger("tender").exception("Ошибка записи prompt в results: %s", e)
+
+        # Also save prompt copy to LOG_DIR/prompts/<task_id>/prompt.txt
+        try:
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            log_prompt_dir = LOG_DIR / "prompts" / task_id
+            log_prompt_dir.mkdir(parents=True, exist_ok=True)
+            (log_prompt_dir / 'prompt.txt').write_text(combined_text, encoding='utf-8')
+            await _maybe_await(send_log(f"📁 prompt скопирован в лог: {log_prompt_dir / 'prompt.txt'}"))
+        except Exception as e:
+            logging.getLogger("tender").exception("Ошибка записи prompt в лог: %s", e)
+
         try:
             model_resp = await call_model(combined_text)
         except Exception as e:
+            logging.getLogger("tender").exception("Ошибка вызова модели: %s", e)
             await _maybe_await(send_log(f"Ошибка вызова модели: {e}"))
             model_resp = ''
 
         await _maybe_await(send_log("Извлекаю JSON из ответа модели"))
-        parsed = extract_json_from_text(model_resp)
+        parsed_raw = extract_json_from_text(model_resp)
+        # Support both raw JSON string (returned by extractor) and already-parsed objects.
+        if isinstance(parsed_raw, str):
+            try:
+                parsed = json.loads(parsed_raw)
+            except Exception as e:
+                logging.getLogger("tender").exception("Ошибка парсинга JSON из ответа модели: %s", e)
+                parsed = {}
+        elif parsed_raw is None:
+            parsed = {}
+        else:
+            parsed = parsed_raw
 
-        # persist to task folder
-        out_dir = Path('results') / task_id
-        os.makedirs(out_dir, exist_ok=True)
-        # save raw model response
+        # save raw model response into results and copy to logs
         raw_file = None
         if model_resp:
             raw_file = out_dir / 'raw.txt'
             try:
                 raw_file.write_text(model_resp, encoding='utf-8')
-            except Exception:
+            except Exception as e:
+                logging.getLogger("tender").exception("Ошибка записи raw.txt: %s", e)
                 raw_file = None
+            else:
+                # copy to logs
+                try:
+                    LOG_DIR.mkdir(parents=True, exist_ok=True)
+                    log_raw_dir = LOG_DIR / 'raw' / task_id
+                    log_raw_dir.mkdir(parents=True, exist_ok=True)
+                    (log_raw_dir / 'raw.txt').write_text(model_resp, encoding='utf-8')
+                except Exception as e:
+                    logging.getLogger("tender").exception("Ошибка записи raw в лог: %s", e)
 
         out_file = out_dir / 'result.json'
-        with open(out_file, 'w', encoding='utf-8') as fh:
-            json.dump(parsed, fh, ensure_ascii=False, indent=2)
+        try:
+            with open(out_file, 'w', encoding='utf-8') as fh:
+                json.dump(parsed, fh, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logging.getLogger("tender").exception("Ошибка записи result.json: %s", e)
+        else:
+            # copy result to logs
+            try:
+                LOG_DIR.mkdir(parents=True, exist_ok=True)
+                log_res_dir = LOG_DIR / 'results' / task_id
+                log_res_dir.mkdir(parents=True, exist_ok=True)
+                with open(log_res_dir / 'result.json', 'w', encoding='utf-8') as fh:
+                    json.dump(parsed, fh, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logging.getLogger("tender").exception("Ошибка записи result в лог: %s", e)
 
         await _maybe_await(send_log(f"Готово, сохранено в {out_file}"))
         return {
             "parsed": parsed,
             "result_path": str(out_file),
-            "prompt_path": None,
+            "prompt_path": str(prompt_file) if 'prompt_file' in locals() else None,
             "raw_path": str(raw_file) if raw_file is not None else None,
         }
     finally:
         try:
             logger.removeHandler(fh)
-        except Exception:
-            pass
+        except Exception as e:
+            try:
+                sys.stderr.write(f"[analysis_service] failed to remove handler: {e}\n")
+            except Exception:
+                pass
 
 
 async def _maybe_await(value):

@@ -1,1 +1,0 @@
-{"products": [{"product_name": "Пример", "specs": "..."}]}

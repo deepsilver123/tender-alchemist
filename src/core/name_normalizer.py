@@ -1,79 +1,6 @@
 import json
-from pathlib import Path
-from typing import Dict, Any
-
-_TERMS_CACHE = None
-
-
-def _load_terms():
-    global _TERMS_CACHE
-    if _TERMS_CACHE is not None:
-        return _TERMS_CACHE
-
-    path = Path('data') / 'product_terms.json'
-    text = None
-    for enc in ('utf-8', 'cp1251'):
-        try:
-            text = path.read_text(encoding=enc)
-            break
-        except Exception:
-            continue
-
-    if text is None:
-        _TERMS_CACHE = {}
-        return _TERMS_CACHE
-
-    # remove trailing commas that can break JSON
-    import re
-    text = re.sub(r',\s*([}\]])', r'\1', text)
-    try:
-        terms = json.loads(text)
-    except Exception:
-        terms = {}
-
-    _TERMS_CACHE = terms
-    return terms
-
-
-def match_term(raw: str):
-    terms = _load_terms()
-    if not raw:
-        return None
-
-    raw_l = raw.lower()
-    for tid, spec in terms.items():
-        aliases = spec.get('aliases', [])
-        for a in aliases:
-            if a and a.lower() in raw_l:
-                return {'type_id': tid, 'type_score': 1.0, 'matched_alias': a}
-    return None
-
-
-def normalize_products(parsed: Dict[str, Any]):
-    """Normalize product entries in parsed model output.
-
-    - Try to match terms only against `product_name` or `original_product_name`.
-    - If matched, set `type_id`/`type_score`.
-    - If not matched, ensure `type_id` is not left from previous runs.
-    """
-    prods = parsed.get('products') or []
-    for p in prods:
-        name = p.get('product_name') or p.get('original_product_name') or ''
-        m = match_term(name)
-        if m:
-            p['type_id'] = m['type_id']
-            p['type_score'] = m['type_score']
-        else:
-            # clear stale values
-            if 'type_id' in p:
-                p['type_id'] = None
-            if 'type_score' in p:
-                p['type_score'] = 0
-
-    return parsed
-import json
 import re
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from .config import DATA_DIR
@@ -98,8 +25,6 @@ def _load_terms():
             return json.loads(txt)
         except Exception:
             try:
-                import re
-
                 cleaned = re.sub(r",\s*(?=[}\]])", "", txt)
                 return json.loads(cleaned)
             except Exception:
@@ -197,7 +122,7 @@ def normalize_products(parsed: dict) -> dict:
             p["type_score"] = 0
             tr = p.get("technical_requirements") or {}
 
-            def _has_indicator(indicators: list[str]) -> bool:
+            def _has_indicator(indicators: List[str]) -> bool:
                 raw_s = _normalize_text(raw)
                 orig_name = p.get("original_product_name") or ""
                 orig_s = _normalize_text(orig_name)
