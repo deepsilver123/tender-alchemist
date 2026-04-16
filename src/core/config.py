@@ -1,5 +1,6 @@
 # config.py (moved into core package)
 from pathlib import Path
+import os
 
 # --- Docling Serve ---
 DOCLING_URL = "http://localhost:5001/v1/convert/file"
@@ -49,3 +50,12 @@ MINISTRAL_PROMPT = """Ты — эксперт по закупкам. Проан�
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 LOG_DIR = PROJECT_ROOT / "logs"
+
+# --- Web UI host/port ---
+# `WEBUI_HOST` and `WEBUI_PORT` can be set via environment variables
+# or consumed by other scripts that import this config.
+WEBUI_HOST = os.environ.get("WEBUI_HOST", "0.0.0.0")
+try:
+  WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "8000"))
+except (TypeError, ValueError):
+  WEBUI_PORT = 8000
