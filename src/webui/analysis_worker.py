@@ -113,12 +113,12 @@ def run_analysis(
         send_log(f"📁 prompt сохранён: {prompt_file}")
     except Exception:
         prompt_file = None
-    # Also save prompt copy to LOG_DIR/<task_id>/prompt.log
+    # Also save prompt copy to LOG_DIR/<task_id>/prompt.html
     try:
         task_log_dir = LOG_DIR / task_id
         task_log_dir.mkdir(parents=True, exist_ok=True)
-        (task_log_dir / "prompt.log").write_text(full_prompt, encoding="utf-8")
-        send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.log'}")
+        (task_log_dir / "prompt.html").write_text(full_prompt, encoding="utf-8")
+        send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.html'}")
     except Exception as e:
         send_log(f"⚠️ Не удалось сохранить prompt в лог: {e}")
 
@@ -155,7 +155,7 @@ def run_analysis(
             send_log(f"📁 Сырой ответ сохранён: {raw_file}")
         except Exception:
             raw_file = None
-        # Also save raw response to LOG_DIR/<task_id>/raw_answer.log
+        # Also save raw response to LOG_DIR/<task_id>/raw_answer.txt
         try:
             task_log_dir = LOG_DIR / task_id
             task_log_dir.mkdir(parents=True, exist_ok=True)
@@ -185,13 +185,13 @@ def run_analysis(
     except Exception as e:
         send_log(f"❌ Ошибка сохранения: {e}")
     else:
-        # Also save result copy to LOG_DIR/<task_id>/result.log
+        # Also save result copy to LOG_DIR/<task_id>/result.json
         try:
             task_log_dir = LOG_DIR / task_id
             task_log_dir.mkdir(parents=True, exist_ok=True)
-            with open(task_log_dir / "result.log", "w", encoding="utf-8") as fh:
+            with open(task_log_dir / "result.json", "w", encoding="utf-8") as fh:
                 json.dump(parsed, fh, ensure_ascii=False, indent=2)
-            send_log(f"📁 Результат скопирован в лог: {task_log_dir / 'result.log'}")
+            send_log(f"📁 Результат скопирован в лог: {task_log_dir / 'result.json'}")
         except Exception as e:
             send_log(f"⚠️ Не удалось сохранить результат в лог: {e}")
 

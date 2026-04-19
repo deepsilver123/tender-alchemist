@@ -112,12 +112,12 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
         except Exception as e:
             logging.getLogger("tender").exception("Ошибка записи prompt в results: %s", e)
 
-        # Also save prompt copy to LOG_DIR/<task_id>/prompt.log
+        # Also save prompt copy to LOG_DIR/<task_id>/prompt.html
         try:
             task_log_dir = LOG_DIR / task_id
             task_log_dir.mkdir(parents=True, exist_ok=True)
-            (task_log_dir / 'prompt.log').write_text(combined_text, encoding='utf-8')
-            await _maybe_await(send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.log'}"))
+            (task_log_dir / 'prompt.html').write_text(combined_text, encoding='utf-8')
+            await _maybe_await(send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.html'}"))
         except Exception as e:
             logging.getLogger("tender").exception("Ошибка записи prompt в лог: %s", e)
 
@@ -156,7 +156,7 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
                 try:
                     task_log_dir = LOG_DIR / task_id
                     task_log_dir.mkdir(parents=True, exist_ok=True)
-                    (task_log_dir / 'raw_answer.log').write_text(model_resp, encoding='utf-8')
+                    (task_log_dir / 'raw_answer.txt').write_text(model_resp, encoding='utf-8')
                 except Exception as e:
                     logging.getLogger("tender").exception("Ошибка записи raw в лог: %s", e)
 
@@ -167,11 +167,11 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
         except Exception as e:
             logging.getLogger("tender").exception("Ошибка записи result.json: %s", e)
         else:
-            # copy result to per-task log folder (as JSON in result.log)
+            # copy result to per-task log folder (as JSON in result.json)
             try:
                 task_log_dir = LOG_DIR / task_id
                 task_log_dir.mkdir(parents=True, exist_ok=True)
-                with open(task_log_dir / 'result.log', 'w', encoding='utf-8') as fh:
+                with open(task_log_dir / 'result.json', 'w', encoding='utf-8') as fh:
                     json.dump(parsed, fh, ensure_ascii=False, indent=2)
             except Exception as e:
                 logging.getLogger("tender").exception("Ошибка записи result в лог: %s", e)
