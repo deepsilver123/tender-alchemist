@@ -103,8 +103,20 @@ def _schedule_broadcast(task_id: str, payload: dict[str, Any]) -> None:
 
 def _append_log(task_id: str, line: str) -> None:
     state = TASKS[task_id]
+    # keep in-memory copy for UI
     state.logs.append(line)
+    # broadcast to websocket clients
     _schedule_broadcast(task_id, {"type": "log", "text": line})
+
+    # persist into per-task processing.log
+    try:
+        task_log_dir = LOG_DIR / task_id
+        task_log_dir.mkdir(parents=True, exist_ok=True)
+        with open(task_log_dir / "processing.log", "a", encoding="utf-8") as fh:
+            fh.write(line.rstrip("\n") + "\n")
+    except Exception:
+        # never allow logging failures to break processing
+        pass
 
 
 async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | None, ministral_model: str | None, docling_base: str | None) -> None:
@@ -121,11 +133,25 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         # This is the key to real-time streaming: we do NOT use asyncio.run() inside
         # the thread (which would create a nested loop and break WS delivery).
         def send_log_threadsafe(line: str) -> None:
-            TASKS[task_id].logs.append(line)
-            asyncio.run_coroutine_threadsafe(
-                _broadcast(task_id, {"type": "log", "text": line}),
-                loop,
-            )
+            # Use module-level _append_log which handles in-memory, broadcast
+            # and persistent write. It is thread-safe because _schedule_broadcast
+            # will schedule the coroutine on the MAIN_LOOP when called from
+            # a worker thread.
+            try:
+                _append_log(task_id, line)
+            except Exception:
+                # fallback to best-effort behaviour
+                try:
+                    TASKS[task_id].logs.append(line)
+                except Exception:
+                    pass
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _broadcast(task_id, {"type": "log", "text": line}),
+                        loop,
+                    )
+                except Exception:
+                    pass
 
         # Preflight: check external services (Ministral, Docling). If unreachable, abort.
         tender_logger = logging.getLogger("tender")

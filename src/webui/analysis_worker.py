@@ -113,13 +113,12 @@ def run_analysis(
         send_log(f"📁 prompt сохранён: {prompt_file}")
     except Exception:
         prompt_file = None
-    # Also save prompt copy to LOG_DIR/prompts/<task_id>/prompt.txt
+    # Also save prompt copy to LOG_DIR/<task_id>/prompt.log
     try:
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        log_prompt_dir = LOG_DIR / "prompts" / task_id
-        log_prompt_dir.mkdir(parents=True, exist_ok=True)
-        (log_prompt_dir / "prompt.txt").write_text(full_prompt, encoding="utf-8")
-        send_log(f"📁 prompt скопирован в лог: {log_prompt_dir / 'prompt.txt'}")
+        task_log_dir = LOG_DIR / task_id
+        task_log_dir.mkdir(parents=True, exist_ok=True)
+        (task_log_dir / "prompt.log").write_text(full_prompt, encoding="utf-8")
+        send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.log'}")
     except Exception as e:
         send_log(f"⚠️ Не удалось сохранить prompt в лог: {e}")
 
@@ -156,13 +155,12 @@ def run_analysis(
             send_log(f"📁 Сырой ответ сохранён: {raw_file}")
         except Exception:
             raw_file = None
-        # Also save raw response to LOG_DIR/raw/<task_id>/raw.txt
+        # Also save raw response to LOG_DIR/<task_id>/raw_answer.log
         try:
-            LOG_DIR.mkdir(parents=True, exist_ok=True)
-            log_raw_dir = LOG_DIR / "raw" / task_id
-            log_raw_dir.mkdir(parents=True, exist_ok=True)
-            (log_raw_dir / "raw.txt").write_text(model_resp, encoding="utf-8")
-            send_log(f"📁 Raw скопирован в лог: {log_raw_dir / 'raw.txt'}")
+            task_log_dir = LOG_DIR / task_id
+            task_log_dir.mkdir(parents=True, exist_ok=True)
+            (task_log_dir / "raw_answer.log").write_text(model_resp, encoding="utf-8")
+            send_log(f"📁 Raw скопирован в лог: {task_log_dir / 'raw_answer.log'}")
         except Exception as e:
             send_log(f"⚠️ Не удалось сохранить raw в лог: {e}")
 
@@ -187,14 +185,13 @@ def run_analysis(
     except Exception as e:
         send_log(f"❌ Ошибка сохранения: {e}")
     else:
-        # Also save result copy to LOG_DIR/results/<task_id>/result.json
+        # Also save result copy to LOG_DIR/<task_id>/result.log
         try:
-            LOG_DIR.mkdir(parents=True, exist_ok=True)
-            log_res_dir = LOG_DIR / "results" / task_id
-            log_res_dir.mkdir(parents=True, exist_ok=True)
-            with open(log_res_dir / "result.json", "w", encoding="utf-8") as fh:
+            task_log_dir = LOG_DIR / task_id
+            task_log_dir.mkdir(parents=True, exist_ok=True)
+            with open(task_log_dir / "result.log", "w", encoding="utf-8") as fh:
                 json.dump(parsed, fh, ensure_ascii=False, indent=2)
-            send_log(f"📁 Результат скопирован в лог: {log_res_dir / 'result.json'}")
+            send_log(f"📁 Результат скопирован в лог: {task_log_dir / 'result.log'}")
         except Exception as e:
             send_log(f"⚠️ Не удалось сохранить результат в лог: {e}")
 
