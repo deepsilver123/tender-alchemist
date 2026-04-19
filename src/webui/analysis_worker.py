@@ -39,12 +39,9 @@ def run_analysis(
     )
     from core.ministral_client import call_ministral
     from core.json_utils import extract_json_from_text
-    from core.html_cleaner import extract_candidate_products
 
     ministral_url = ministral_url or MINISTRAL_URL
     ministral_model = ministral_model or MINISTRAL_MODEL
-
-    send_log(f"Начинаю обработку {len(files)} файлов")
 
     # ── Этап 1: чтение файлов ────────────────────────────────────────────
     send_log(f"📌 Этап 1/5: чтение {len(files)} файлов")
@@ -86,22 +83,10 @@ def run_analysis(
     task_log_dir.mkdir(parents=True, exist_ok=True)
     send_log(f"✅ Этап 1/5 завершён: {len(combined_text)} символов суммарно")
 
-    # ── Этап 2: поиск кандидатов ─────────────────────────────────────────
-    send_log("📌 Этап 2/5: детерминированный поиск кандидатов товаров")
-    try:
-        candidates = extract_candidate_products(combined_text)
-        send_log(f"✅ Этап 2/5 завершён: кандидатов={len(candidates)}")
-        if candidates:
-            send_log(f"🔎 Превью кандидатов: {'; '.join(candidates[:5])}")
-    except Exception as e:
-        candidates = []
-        send_log(f"⚠️ Ошибка извлечения кандидатов: {e}")
-
-    # ── Этап 3: сборка prompt ────────────────────────────────────────────
-    send_log("📌 Этап 3/5: сборка итогового prompt")
-    cand_preview = "; ".join(candidates[:10]) if candidates else ""
-    full_prompt = f"{MINISTRAL_PROMPT}\n\nПредварительные кандидаты: {cand_preview}\n\n{combined_text}"
-    send_log(f"✅ Этап 3/5 завершён: длина prompt={len(full_prompt)} символов")
+    # ── Этап 2: сборка prompt ────────────────────────────────────────────
+    send_log("📌 Этап 2/4: сборка итогового prompt")
+    full_prompt = f"{MINISTRAL_PROMPT}\n\n{combined_text}"
+    send_log(f"✅ Этап 2/4 завершён: длина prompt={len(full_prompt)} символов")
 
     prompt_file: Optional[Path] = None
     try:
@@ -110,8 +95,8 @@ def run_analysis(
     except Exception as e:
         send_log(f"⚠️ Не удалось сохранить prompt в лог: {e}")
 
-    # ── Этап 4: вызов модели ─────────────────────────────────────────────
-    send_log("📌 Этап 4/5: отправка prompt в Ministral API")
+    # ── Этап 3: вызов модели ─────────────────────────────────────────────
+    send_log("📌 Этап 3/4: отправка prompt в Ministral API")
     send_log(f"🧠 Модель: {ministral_model}; URL: {ministral_url}")
 
     ai_start = time.time()
@@ -134,9 +119,9 @@ def run_analysis(
     parsed: dict = {}
 
     if not model_resp:
-        send_log(f"❌ Этап 4/5: AI не вернул ответ ({ai_time:.2f} сек) — проверьте URL и модель")
+        send_log(f"❌ Этап 3/4: AI не вернул ответ ({ai_time:.2f} сек) — проверьте URL и модель")
     else:
-        send_log(f"✅ Этап 4/5 завершён: ответ получен за {ai_time:.2f} сек")
+        send_log(f"✅ Этап 3/4 завершён: ответ получен за {ai_time:.2f} сек")
         try:
             (task_log_dir / "raw_answer.log").write_text(model_resp, encoding="utf-8")
             raw_file = task_log_dir / "raw_answer.log"
@@ -150,8 +135,8 @@ def run_analysis(
         if not parsed:
             send_log("⚠️ Не удалось извлечь JSON из ответа модели")
 
-    # ── Этап 5: нормализация и сохранение ───────────────────────────────
-    send_log("📌 Этап 5/5: нормализация и сохранение результата")
+    # ── Этап 4: нормализация и сохранение ───────────────────────────────
+    send_log("📌 Этап 4/4: нормализация и сохранение результата")
     try:
         from core import normalize_products
         parsed = normalize_products(parsed)

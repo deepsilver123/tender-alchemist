@@ -103,6 +103,9 @@ def _schedule_broadcast(task_id: str, payload: dict[str, Any]) -> None:
 
 def _append_log(task_id: str, line: str) -> None:
     state = TASKS[task_id]
+    # avoid broadcasting consecutive duplicate lines
+    if state.logs and state.logs[-1] == line:
+        return
     # keep in-memory copy for UI
     state.logs.append(line)
     # broadcast to websocket clients
@@ -336,8 +339,6 @@ async def ws_task(task_id: str, websocket: WebSocket):
 
     try:
         await websocket.send_text(json.dumps({"type": "status", "status": state.status, "error": state.error}, ensure_ascii=False))
-        for line in state.logs:
-            await websocket.send_text(json.dumps({"type": "log", "text": line}, ensure_ascii=False))
         if state.parsed is not None:
             await websocket.send_text(json.dumps({"type": "result_data", "json": state.parsed}, ensure_ascii=False))
 

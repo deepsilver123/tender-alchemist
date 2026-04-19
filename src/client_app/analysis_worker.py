@@ -113,23 +113,14 @@ class AnalysisWorker(QObject):
             timestamp = datetime.now().strftime("%d-%m-%Y-%H-%M")
             with open(LOG_DIR / f"original_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(all_html)
-            self.log.emit(f"📁 Сохранён исходный объединённый HTML: {str(LOG_DIR / f'original_{timestamp}.html')}")
+            self.log.emit(f"📁 Сохранён исходный объединённый HTML: {str(LOG_DIR / f'original_{timestamp}.html}')}")
 
-            self.log.emit("📌 Этап 2/5: детерминированный поиск кандидатов товаров")
-            from core.html_cleaner import extract_candidate_products
-
-            candidate_products = extract_candidate_products(all_html)
-            self.log.emit(f"✅ Этап 2/5 завершён: кандидатов={len(candidate_products)}")
-            if candidate_products:
-                preview = "; ".join(candidate_products[:5])
-                self.log.emit(f"🔎 Превью кандидатов: {preview}")
-
-            self.log.emit("📌 Этап 3/5: сборка итогового prompt")
+            candidate_products: list[str] = []
+            self.log.emit("📌 Этап 2/4: сборка итогового prompt")
             # Provide a sensible fallback if caller didn't pass a build_prompt
             if not callable(self.build_prompt):
                 def _default_build_prompt(all_html, candidate_products):
-                    cand_preview = "; ".join(candidate_products[:10]) if candidate_products else ""
-                    return f"{MINISTRAL_PROMPT}\n\nПредварительные кандидаты: {cand_preview}\n\n{all_html}"
+                    return f"{MINISTRAL_PROMPT}\n\n{all_html}"
                 self.build_prompt = _default_build_prompt
 
             try:
@@ -138,7 +129,7 @@ class AnalysisWorker(QObject):
                 self.log.emit(f"❌ Ошибка при сборке prompt: {e}")
                 self.finished.emit()
                 return
-            self.log.emit(f"✅ Этап 3/5 завершён: длина prompt={len(full_prompt)} символов")
+            self.log.emit(f"✅ Этап 3/4 завершён: длина prompt={len(full_prompt)} символов")
 
             with open(LOG_DIR / f"prompt_{timestamp}.html", "w", encoding="utf-8") as f:
                 f.write(full_prompt)
@@ -148,7 +139,7 @@ class AnalysisWorker(QObject):
                 self.finished.emit()
                 return
 
-            self.log.emit("📌 Этап 4/5: отправка prompt в Ministral API")
+            self.log.emit("📌 Этап 3/4: отправка prompt в Ministral API")
             self.log.emit(f"🧠 Модель: {self.ministral_model}; URL: {self.ministral_url}")
             ai_start = time.time()
             if self.call_ministral_func:
@@ -179,10 +170,10 @@ class AnalysisWorker(QObject):
                 return
             ai_time = time.time() - ai_start
             if response is None:
-                self.log.emit(f"❌ Этап 4/5: AI анализ не дал ответа ({ai_time:.2f} сек)")
+                self.log.emit(f"❌ Этап 3/4: AI анализ не дал ответа ({ai_time:.2f} сек)")
                 json_str = None
             else:
-                self.log.emit(f"✅ Этап 4/5 завершён: ответ получен за {ai_time:.2f} сек")
+                self.log.emit(f"✅ Этап 3/4 завершён: ответ получен за {ai_time:.2f} сек")
                 try:
                     raw_path = LOG_DIR / f"raw_response_{timestamp}.txt"
                     with open(raw_path, "w", encoding="utf-8") as rf:
@@ -220,7 +211,7 @@ class AnalysisWorker(QObject):
                 with open(result_path, "w", encoding="utf-8") as f:
                     f.write(json_str)
                 self.log.emit(f"📁 Результат сохранён в {str(result_path)}")
-                self.log.emit("✅ Этап 5/5 завершён")
+                self.log.emit("✅ Этап 4/4 завершён")
 
             total_time = time.time() - start_time
             self.log.emit(f"🎉 Анализ завершён за {total_time:.2f} сек")

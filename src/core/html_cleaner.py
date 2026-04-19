@@ -1,6 +1,10 @@
 # html_cleaner.py (moved into core)
 from bs4 import BeautifulSoup, Tag
+import json
 import re
+from pathlib import Path
+
+from core.config import PROJECT_ROOT
 
 
 def clean_html_tables(html: str) -> str:
@@ -12,60 +16,7 @@ def clean_html_tables(html: str) -> str:
 
 
 def extract_candidate_products(html: str, limit: int = 50) -> list[str]:
-    soup = BeautifulSoup(html or '', 'html.parser')
-    candidates = []
-    seen = set()
-
-    for table in soup.find_all('table'):
-        if table.find('table') is not None:
-            continue
-
-        grid = _table_to_text_grid(table)
-        if not grid:
-            continue
-
-        header_rows = _detect_header_rows(grid)
-        product_column_indexes = []
-
-        for row_index in header_rows:
-            row = grid[row_index]
-            for column_index, cell_text in enumerate(row):
-                header_text = _normalize_header_text(cell_text)
-                if not _is_product_header(header_text):
-                    continue
-                product_column_indexes.append(column_index)
-
-        for row in grid[:8]:
-            for cell_text in row:
-                inline_candidate = _extract_candidate_from_header_cell(cell_text)
-                if inline_candidate and inline_candidate not in seen:
-                    seen.add(inline_candidate)
-                    candidates.append(inline_candidate)
-
-        product_column_indexes = list(dict.fromkeys(product_column_indexes))
-        if not product_column_indexes:
-            continue
-
-        data_start_index = (max(header_rows) + 1) if header_rows else 0
-        for row in grid[data_start_index:]:
-            if _row_looks_like_metadata(row):
-                continue
-            for column_index in product_column_indexes:
-                if column_index >= len(row):
-                    continue
-                raw_value = row[column_index]
-                if _is_product_header(_normalize_header_text(raw_value)):
-                    continue
-                value = _normalize_candidate_name(raw_value)
-                if not value or value in seen:
-                    continue
-                seen.add(value)
-                candidates.append(value)
-
-        if len(candidates) >= limit:
-            break
-
-    return candidates[:limit]
+    return []
 
 
 def remove_duplicate_tables(soup: BeautifulSoup):
@@ -365,19 +316,98 @@ def _is_product_header(s: str) -> bool:
     return any(k in s for k in ('наименование', 'товар', 'наим'))
 
 
+def _looks_like_header_label(s: str) -> bool:
+    if not s:
+        return False
+    return any(k in s for k in ('код', 'позиция', 'единица', 'измерение', 'цена', 'сумма', 'количество', 'производитель', 'характеристика', 'описание', 'комментарий'))
+
+
+def _is_likely_header_label(s: str) -> bool:
+    return _looks_like_header_label(_normalize_header_text(s))
+
+
 def _extract_candidate_from_header_cell(s: str) -> str | None:
     if not s:
         return None
     s = s.strip()
-    if len(s) > 3 and len(s.split()) <= 6:
+    if len(s.split()) <= 6 and not _is_likely_header_label(s):
         return s
     return None
 
 
 def _row_looks_like_metadata(row: list[str]) -> bool:
     joined = ' '.join(row).lower()
-    return any(k in joined for k in ('цена', 'количество', 'сумма', 'руб', 'итого'))
+    return any(k in joined for k in ('цена', 'количество', 'сумма', 'руб', 'итого', 'единица'))
+
+
+_PRODUCT_TERMS = None
+_PRODUCT_TERM_ALIASES = None
+
+
+def _normalize_text(s: str) -> str:
+    if not s:
+        return ''
+    return re.sub(r'[^\w\dа-яё]+', ' ', s.lower()).strip()
+
+
+def _load_product_terms() -> list[dict]:
+    global _PRODUCT_TERMS, _PRODUCT_TERM_ALIASES
+    if _PRODUCT_TERMS is not None:
+        return _PRODUCT_TERMS
+
+    _PRODUCT_TERMS = []
+    _PRODUCT_TERM_ALIASES = []
+    terms_path = PROJECT_ROOT / 'data' / 'product_terms.json'
+    try:
+        with open(terms_path, 'r', encoding='utf-8') as f:
+            _PRODUCT_TERMS = json.load(f)
+    except Exception:
+        _PRODUCT_TERMS = []
+        _PRODUCT_TERM_ALIASES = []
+        return _PRODUCT_TERMS
+
+    for term in _PRODUCT_TERMS:
+        name = term.get('name', '').strip()
+        if name:
+            alias = _normalize_text(name)
+            if alias:
+                _PRODUCT_TERM_ALIASES.append((alias, term))
+        for raw_alias in term.get('aliases', []):
+            alias = _normalize_text(raw_alias)
+            if alias:
+                _PRODUCT_TERM_ALIASES.append((alias, term))
+
+    # Sort by alias length so longer alias phrases match first
+    _PRODUCT_TERM_ALIASES.sort(key=lambda item: -len(item[0]))
+    return _PRODUCT_TERMS
+
+
+def _match_product_term(s: str) -> dict | None:
+    if not s:
+        return None
+    _load_product_terms()
+    norm = _normalize_text(s)
+    if not norm or not _PRODUCT_TERM_ALIASES:
+        return None
+
+    for alias, term in _PRODUCT_TERM_ALIASES:
+        if alias == norm:
+            return term
+        if f' {alias} ' in f' {norm} ':
+            return term
+    return None
+
+
+def _candidate_matches_product_terms(s: str) -> bool:
+    if not s:
+        return False
+    term = _match_product_term(s)
+    return term is not None
+
+
+def _canonicalize_candidate(s: str) -> str:
+    return ' '.join((s or '').strip().split())
 
 
 def _normalize_candidate_name(s: str) -> str:
-    return s.strip()
+    return ' '.join((s or '').strip().split())
