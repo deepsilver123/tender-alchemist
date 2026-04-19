@@ -46,6 +46,7 @@ logs/
 .venv/
 venv/
 .env
+!searxng/.env
 *.log
 .pytest_cache/
 .mypy_cache/
