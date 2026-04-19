@@ -1,0 +1,28 @@
+# ── Web framework ──
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+websockets
+
+# ── HTTP / parsing ──
+requests
+beautifulsoup4
+chardet
+charset-normalizer
+lxml
+
+# ── Document processing ──
+python-docx
+pypdf
+openpyxl
+pandas
+pdf2image
+pytesseract
+pillow
+opencv-python-headless
+
+# ── Aspose converters (DOC→DOCX, XLS→XLSX) ──
+aspose-words
+aspose-cells
+JPype1

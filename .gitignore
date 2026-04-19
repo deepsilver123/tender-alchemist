@@ -5,9 +5,14 @@
 !/src/**
 !/data/
 !/data/**
-
 !/scripts/
 !/scripts/**
+!/deploy/
+!/deploy/**
+!/docker-compose.yml
+!/.dockerignore
+!/.env.example
+!/run_webui.py
 
 # Ignore Python cache inside allowed dirs
 # Ignore Python bytecode and cache

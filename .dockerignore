@@ -1,0 +1,34 @@
+.git
+.github
+.venv
+venv
+.vscode
+.idea
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+# Runtime artifacts — don't bake into image
+logs/
+data/uploads/
+data/state.json
+data/downloads/
+
+# Dev / test files
+tests/
+docs/
+*.md
+!src/core/README.md
+Thumbs.db
+.DS_Store
+.env
+*.log
+
+# Docker / deploy meta (not needed inside image)
+docker-compose.yml
+.env.example
+deploy/start.sh

@@ -3,14 +3,14 @@ from pathlib import Path
 import os
 
 # --- Docling Serve ---
-DOCLING_URL = "http://localhost:5001/v1/convert/file"
+DOCLING_URL = os.environ.get("DOCLING_URL", "http://localhost:5001/v1/convert/file")
 DOCLING_TIMEOUT = 120
-DOCLING_API_KEY = None
+DOCLING_API_KEY = os.environ.get("DOCLING_API_KEY")
 
 # --- Ministral ---
-MINISTRAL_URL = "http://localhost:11434/api"
-MINISTRAL_API_KEY = None
-MINISTRAL_MODEL = "ministral-3:3b"
+MINISTRAL_URL = os.environ.get("MINISTRAL_URL", "http://localhost:11434/api")
+MINISTRAL_API_KEY = os.environ.get("MINISTRAL_API_KEY")
+MINISTRAL_MODEL = os.environ.get("MINISTRAL_MODEL", "ministral-3:3b")
 MINISTRAL_TEMPERATURE = 0.1
 MINISTRAL_MAX_TOKENS = 4000
 MINISTRAL_NUM_CTX = 32384   # целимся в устойчивую работу на слабой GPU

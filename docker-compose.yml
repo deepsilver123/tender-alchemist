@@ -1,0 +1,118 @@
+services:
+  ollama:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ollama
+    image: ta-ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=30
+      - OLLAMA_MODEL=ministral-3:3b
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:cuda
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui_data:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENABLE_RAG_WEB_SEARCH=True
+      - RAG_WEB_SEARCH_ENGINE="searxng"
+      - RAG_WEB_SEARCH_RESULT_COUNT=3
+      - RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
+      - SEARXNG_QUERY_URL="http://searxng:8080/search?q=<query>"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 0
+              capabilities: [gpu]
+    restart: always
+
+  docling-serve:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.docling
+    container_name: docling-serve
+    ports:
+      - "5001:5001"
+    environment:
+      - DOCLING_SERVE_ENABLE_UI=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 0
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  searxng-core:
+    container_name: searxng-core
+    image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
+    restart: always
+    ports:
+      - 8080:8080
+    env_file: ./searxng/.env
+    volumes:
+      - ./searxng/config:/etc/searxng/
+      - core-data:/var/cache/searxng/
+
+  searxng-valkey:
+    container_name: searxng-valkey
+    image: docker.io/valkey/valkey:9-alpine
+    command: valkey-server --save 30 1 --loglevel warning
+    restart: always
+    volumes:
+      - valkey-data:/data/
+
+  webui:
+    build:
+      context: .
+      dockerfile: deploy/webui/Dockerfile
+    container_name: ta-webui
+    ports:
+      - "8000:8000"
+    environment:
+      - WEBUI_HOST=0.0.0.0
+      - WEBUI_PORT=8000
+      - MINISTRAL_URL=http://ollama:11434/api
+      - MINISTRAL_MODEL=ministral-3:3b
+      - DOCLING_URL=http://docling-serve:5001/v1/convert/file
+    volumes:
+      - webui_data:/app/data
+      - webui_logs:/app/logs
+    depends_on:
+      - ollama
+      - docling-serve
+    restart: unless-stopped
+
+volumes:
+  core-data:
+  valkey-data:
+  ollama_data:
+  open-webui_data:
+  webui_data:
+  webui_logs:

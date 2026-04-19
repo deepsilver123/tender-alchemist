@@ -1,0 +1,16 @@
+# Dockerfile
+FROM quay.io/docling-project/docling-serve-cu130:v1.15.0
+
+# Создаём папку для моделей EasyOCR
+RUN mkdir -p /opt/app-root/src/.cache/docling/models/EasyOcr/
+
+# Копируем русскую модель (предварительно скачайте её)
+# Или скачиваем при сборке
+RUN python -c "import easyocr; reader = easyocr.Reader(['ru', 'en'])" || true
+
+# Перемещаем модель в правильное место
+RUN mv /opt/app-root/src/.EasyOCR/model/cyrillic_g2.pth /opt/app-root/src/.cache/docling/models/EasyOcr/ || true
+
+# Создаём скрипт для проверки наличия модели
+RUN echo 'import os; print("Русская модель EasyOCR:", os.path.exists("/opt/app-root/src/.cache/docling/models/EasyOcr/cyrillic_g2.pth"))' > /tmp/check.py && \   
+    python /tmp/check.py

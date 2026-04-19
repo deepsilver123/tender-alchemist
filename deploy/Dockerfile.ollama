@@ -1,0 +1,11 @@
+FROM ollama/ollama:latest
+
+# Запуск сервера Ollama в фоне, ожидание готовности и pull модели
+RUN nohup ollama serve > /tmp/ollama.log 2>&1 & \
+    sleep 15 && \
+    ollama pull ministral-3:3b && \
+    pkill ollama
+
+EXPOSE 11434
+
+CMD ["serve"]

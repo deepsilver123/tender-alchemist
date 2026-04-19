@@ -87,8 +87,6 @@
     .task-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .task-id-display { font-family: 'Consolas', monospace; font-size: 20px; font-weight: 700; color: #f8fafc; word-break: break-all; margin: 4px 0 14px; }
     .task-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-    .download-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #059669; color: #fff; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 600; transition: background .2s; }
-    .download-btn:hover { background: #047857; }
     .ghost-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: rgba(255,255,255,.07); color: #94a3b8; border-radius: 8px; text-decoration: none; font-size: 15px; transition: background .2s; }
     .ghost-btn:hover { background: rgba(255,255,255,.12); color: #e2e8f0; }
     .uploaded-files { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 14px; }
@@ -156,6 +154,9 @@
 
     <a href="/" class="new-task-btn">
       <span style="font-size:16px;line-height:1;">＋</span> Новая задача
+    </a>
+    <a href="/history" class="new-task-btn" style="background:#1e293b; margin-top:2px;">
+      🗂 История
     </a>
 
     <div class="sidebar-section">
@@ -274,7 +275,7 @@
             </div>
             <div class="field">
               <label>Docling URL</label>
-              <input type="url" name="docling_base" class="input-text" value="http://localhost:5001" />
+              <input type="url" name="docling_base" class="input-text" placeholder="http://localhost:5001" />
             </div>
           </div>
 

@@ -39,6 +39,7 @@ MAIN_LOOP: asyncio.AbstractEventLoop | None = None
 async def _lifespan(app: FastAPI):
     global MAIN_LOOP
     MAIN_LOOP = asyncio.get_running_loop()
+    _load_state()
     yield
 
 
@@ -75,6 +76,79 @@ TASKS: Dict[str, TaskState] = {}
 WS_CLIENTS: Dict[str, set[WebSocket]] = {}
 # session_id -> set(task_id)
 SESSIONS: Dict[str, set[str]] = {}
+
+STATE_FILE = DATA_DIR / "state.json"
+
+
+def _save_state() -> None:
+    """Persist TASKS metadata and SESSIONS to disk (JSON)."""
+    try:
+        tasks_data = {}
+        for tid, st in TASKS.items():
+            tasks_data[tid] = {
+                "id": st.id,
+                "status": st.status,
+                "files": st.files,
+                "error": st.error,
+            }
+        sessions_data = {sid: sorted(tids) for sid, tids in SESSIONS.items()}
+        payload = {"tasks": tasks_data, "sessions": sessions_data}
+        # atomic write via temp file
+        tmp = STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(STATE_FILE)
+    except Exception:
+        logging.getLogger("tender").exception("Failed to save state")
+
+
+def _load_state() -> None:
+    """Restore TASKS and SESSIONS from disk on startup."""
+    if not STATE_FILE.exists():
+        return
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        logging.getLogger("tender").exception("Failed to read state file")
+        return
+
+    for tid, meta in data.get("tasks", {}).items():
+        status = meta.get("status", "done")
+        # Treat tasks that were running when server stopped as failed
+        if status in ("created", "running"):
+            status = "failed"
+            meta["error"] = meta.get("error") or "Сервер был перезапущен"
+        # Restore logs from processing.log
+        logs: list[str] = []
+        log_file = LOG_DIR / tid / "processing.log"
+        if log_file.exists():
+            try:
+                logs = log_file.read_text(encoding="utf-8").splitlines()
+            except Exception:
+                pass
+        # Restore parsed result from result.json
+        parsed = None
+        result_file = LOG_DIR / tid / "result.json"
+        if result_file.exists():
+            try:
+                parsed = json.loads(result_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        raw_path_file = LOG_DIR / tid / "raw_answer.log"
+        TASKS[tid] = TaskState(
+            id=tid,
+            status=status,
+            logs=logs,
+            parsed=parsed,
+            error=meta.get("error"),
+            files=meta.get("files", []),
+            raw_path=str(raw_path_file) if raw_path_file.exists() else None,
+        )
+
+    for sid, tids in data.get("sessions", {}).items():
+        # Only keep task IDs that were actually restored
+        valid = {t for t in tids if t in TASKS}
+        if valid:
+            SESSIONS[sid] = valid
 
 
 async def _broadcast(task_id: str, payload: dict[str, Any]) -> None:
@@ -190,6 +264,7 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
             state.status = "failed"
             state.error = f"Сервисы недоступны: {msg}"
             _append_log(task_id, f"❌ {state.error}")
+            _save_state()
             await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
             tender_logger.error("Preflight failed: %s", state.error)
             return
@@ -207,6 +282,7 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         state.result_path = None
         state.prompt_path = None
         state.raw_path = result.get("raw_path")
+        _save_state()
         await _broadcast(task_id, {"type": "status", "status": state.status})
         try:
             await _broadcast(task_id, {"type": "result_data", "json": state.parsed})
@@ -216,19 +292,24 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         state.status = "failed"
         state.error = str(e)
         _append_log(task_id, f"❌ Ошибка: {e}")
+        _save_state()
         await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
     finally:
         # Clean up uploaded files to free disk space
+        _cleanup_upload_dir(task_id)
+
+
+def _cleanup_upload_dir(task_id: str) -> None:
+    upload_dir = UPLOAD_ROOT / task_id
+    try:
+        if upload_dir.exists():
+            shutil.rmtree(upload_dir, ignore_errors=True)
+            logging.getLogger("tender").info("Removed upload dir %s", upload_dir)
+    except Exception:
         try:
-            upload_dir = UPLOAD_ROOT / task_id
-            if upload_dir.exists():
-                shutil.rmtree(upload_dir)
-                tender_logger.info("Removed upload dir %s", upload_dir)
+            logging.getLogger("tender").exception("Failed to remove upload dir %s", upload_dir)
         except Exception:
-            try:
-                tender_logger.exception("Failed to remove upload dir %s", upload_dir)
-            except Exception:
-                pass
+            pass
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -253,7 +334,7 @@ async def index(request: Request, task_id: str | None = None):
     if task_id:
         # Only show task if it belongs to this session
         if task_id not in SESSIONS.get(session_id, set()):
-            context.update(task_id=task_id, status="not_found", initial_logs="", initial_json="", download_url="", error="Task not found")
+            context.update(task_id=task_id, status="not_found", initial_logs="", initial_json="", error="Task not found")
             response = TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
             if created_new_session:
                 response.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
@@ -290,7 +371,7 @@ async def start_analyze(
     files: list[UploadFile] = File(...),
     ministral_url: str = Form(default=""),
     ministral_model: str = Form(default=""),
-    docling_base: str = Form(default="http://localhost:5001"),
+    docling_base: str = Form(default=""),
 ):
     task_id = uuid.uuid4().hex
     task_dir = UPLOAD_ROOT / task_id
@@ -313,6 +394,7 @@ async def start_analyze(
         session_id = uuid.uuid4().hex
         created_new_session = True
     SESSIONS.setdefault(session_id, set()).add(task_id)
+    _save_state()
 
     redirect = RedirectResponse(url=f"/?task_id={task_id}", status_code=303)
     if created_new_session:
@@ -374,4 +456,72 @@ async def raw_response(request: Request, task_id: str):
     except Exception:
         return HTMLResponse("Failed to read raw file", status_code=500)
 
+    return HTMLResponse(content=text, media_type="text/plain")
+
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    session_id = request.cookies.get("tender_session")
+    created_new_session = False
+    if not session_id:
+        session_id = uuid.uuid4().hex
+        SESSIONS.setdefault(session_id, set())
+        created_new_session = True
+
+    my_task_ids = list(SESSIONS.get(session_id, set()))
+    # Build rich task list sorted by most-recent first (uuid4 hex is unordered; use insertion order via TASKS dict)
+    all_task_ids_ordered = list(TASKS.keys())
+    my_task_ids_ordered = [t for t in reversed(all_task_ids_ordered) if t in set(my_task_ids)]
+
+    tasks_detail = []
+    for tid in my_task_ids_ordered:
+        st = TASKS.get(tid)
+        if not st:
+            continue
+        # Load logs from file if not in memory
+        logs_text = "\n".join(st.logs)
+        if not logs_text:
+            log_file = LOG_DIR / tid / "processing.log"
+            if log_file.exists():
+                try:
+                    logs_text = log_file.read_text(encoding="utf-8")
+                except Exception:
+                    logs_text = ""
+        raw_available = (LOG_DIR / tid / "raw_answer.log").exists()
+        tasks_detail.append({
+            "id": tid,
+            "status": st.status,
+            "files": st.files,
+            "error": st.error or "",
+            "logs": logs_text,
+            "raw_available": raw_available,
+        })
+
+    my_tasks = [{"id": t["id"], "status": t["status"], "files": t["files"]} for t in tasks_detail]
+    context: dict[str, Any] = {
+        "request": request,
+        "my_tasks": my_tasks,
+        "tasks_detail": tasks_detail,
+    }
+    response = TEMPLATES.TemplateResponse(request=request, name="history.html", context=context)
+    if created_new_session:
+        response.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
+    return response
+
+
+@app.get("/logs/{task_id}", response_class=HTMLResponse)
+async def task_logs(request: Request, task_id: str):
+    """Return raw log text for a task (session-scoped)."""
+    session_id = request.cookies.get("tender_session")
+    if not session_id or task_id not in SESSIONS.get(session_id, set()):
+        return HTMLResponse("Not found", status_code=404)
+    log_file = LOG_DIR / task_id / "processing.log"
+    if not log_file.exists():
+        state = TASKS.get(task_id)
+        text = "\n".join(state.logs) if state else ""
+    else:
+        try:
+            text = log_file.read_text(encoding="utf-8")
+        except Exception:
+            return HTMLResponse("Failed to read log file", status_code=500)
     return HTMLResponse(content=text, media_type="text/plain")
