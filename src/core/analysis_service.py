@@ -82,12 +82,12 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
             await _maybe_await(send_log(f"Читаю {file_path}"))
             # simple heuristic: call pandoc/docx parser based on extension
             ext = Path(file_path).suffix.lower()
-            if ext in ('.docx',):
+            if ext in ('.docx', '.doc'):
                 try:
-                    from .docx_parser import extract_from_docx
-                    text = extract_from_docx(file_path)
+                    from .file_reader import extract_text_from_file
+                    text = extract_text_from_file(file_path)
                 except Exception as e:
-                    logging.getLogger("tender").exception("Ошибка парсинга DOCX %s: %s", file_path, e)
+                    logging.getLogger("tender").exception("Ошибка парсинга DOC/DOCX %s: %s", file_path, e)
                     text = ''
             else:
                 try:

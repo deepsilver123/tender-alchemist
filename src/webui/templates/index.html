@@ -420,42 +420,52 @@
 
   // WebSocket
   var proto = (location.protocol === 'https:') ? 'wss' : 'ws';
-  var ws = new WebSocket(proto + '://' + location.host + '/ws/' + taskId);
+  var wsCurrentStatus = '{{ status }}';
+  var wsReconnectTimer = null;
+  var ws = null;
 
-  ws.onmessage = function (ev) {
-    try {
-      var msg = JSON.parse(ev.data);
+  function wsConnect() {
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    ws = new WebSocket(proto + '://' + location.host + '/ws/' + taskId);
 
-      if (msg.type === 'log' && msg.text) {
-        appendLog(msg.text);
-      }
+    ws.onmessage = function (ev) {
+      try {
+        var msg = JSON.parse(ev.data);
 
-      if (msg.type === 'status' && msg.status) {
-        setStatus(msg.status);
-        if (msg.error && errEl) { errEl.textContent = msg.error; errEl.style.display = 'block'; }
-      }
-
-      // 'result' broadcast with download is disabled (server no longer provides downloadable results)
-
-      if (msg.type === 'result_data' && msg.json) {
-        try {
-          var data = (typeof msg.json === 'string') ? JSON.parse(msg.json) : msg.json;
-          codeEl.textContent = JSON.stringify(data, null, 2);
-        } catch (e) {
-          codeEl.textContent = String(msg.json);
+        if (msg.type === 'log' && msg.text) {
+          appendLog(msg.text);
         }
-        if (window.hljs) hljs.highlightElement(codeEl);
-        if (resultCard) resultCard.style.display = 'block';
-        if (rawCard) rawCard.style.display = 'block';
-      }
-    } catch (e) {
-      appendLog(String(ev.data));
-    }
-  };
 
-  ws.onclose = function () {
-    if (logs && logs.textContent && logs.textContent.trim()) appendLog('[WebSocket закрыт]');
-  };
+        if (msg.type === 'status' && msg.status) {
+          wsCurrentStatus = msg.status;
+          setStatus(msg.status);
+          if (msg.error && errEl) { errEl.textContent = msg.error; errEl.style.display = 'block'; }
+        }
+
+        if (msg.type === 'result_data' && msg.json) {
+          try {
+            var data = (typeof msg.json === 'string') ? JSON.parse(msg.json) : msg.json;
+            codeEl.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            codeEl.textContent = String(msg.json);
+          }
+          if (window.hljs) hljs.highlightElement(codeEl);
+          if (resultCard) resultCard.style.display = 'block';
+          if (rawCard) rawCard.style.display = 'block';
+        }
+      } catch (e) {
+        appendLog(String(ev.data));
+      }
+    };
+
+    ws.onclose = function () {
+      if (wsCurrentStatus === 'running' || wsCurrentStatus === 'created') {
+        wsReconnectTimer = setTimeout(wsConnect, 2000);
+      }
+    };
+  }
+
+  wsConnect();
 })();
 </script>
 </body>

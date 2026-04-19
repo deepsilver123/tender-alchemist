@@ -134,6 +134,62 @@ def extract_from_excel(file_path: Path) -> str:
         return f"[Ошибка чтения Excel: {e}]"
 
 
+def convert_xls_to_xlsx(xls_path: str) -> str:
+    file_path = Path(xls_path)
+    if not file_path.exists():
+        return ""
+
+    try:
+        import jpype
+        import asposecells  # noqa: F401
+        if not jpype.isJVMStarted():
+            jpype.startJVM()
+        from asposecells.api import Workbook
+    except Exception:
+        return ""
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    tmp.close()
+    output_path = Path(tmp.name)
+
+    try:
+        wb = Workbook(str(file_path))
+        wb.save(str(output_path))
+        return str(output_path)
+    except Exception as e:
+        logging.getLogger("tender").warning(f"[XLS] Aspose conversion failed: {e}")
+        output_path.unlink(missing_ok=True)
+        return ""
+
+
+def convert_doc_to_docx(doc_path: str) -> str:
+    file_path = Path(doc_path)
+    if not file_path.exists():
+        return ""
+
+    try:
+        import aspose.words as aw
+    except Exception:
+        return ""
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.docx', delete=False)
+    tmp.close()
+    output_path = Path(tmp.name)
+
+    try:
+        document = aw.Document(str(file_path))
+        document.save(str(output_path), aw.SaveFormat.DOCX)
+        return str(output_path)
+    except Exception as e:
+        logger = logging.getLogger("tender")
+        try:
+            logger.warning(f"[DOC] Aspose conversion failed: {e}")
+        except Exception:
+            pass
+        output_path.unlink(missing_ok=True)
+        return ""
+
+
 def process_with_docling(file_path: Path, from_format: str, docling_base_url: str = None, cancel_checker=None) -> str:
     _base = (docling_base_url or "http://localhost:5001").rstrip("/")
     _async_url = f"{_base}/v1/convert/file/async"
@@ -280,35 +336,43 @@ def extract_text_from_file(filepath: str, docling_base_url: str = None, cancel_c
     if callable(cancel_checker) and cancel_checker():
         return "[Отменено пользователем]"
 
+    if ext == '.doc':
+        logging.getLogger("tender").info(f"[DOC] Преобразование DOC → DOCX {file_path.name}...")
+        converted_docx = convert_doc_to_docx(str(file_path))
+        if converted_docx:
+            try:
+                return extract_text_from_file(converted_docx, docling_base_url, cancel_checker)
+            finally:
+                Path(converted_docx).unlink(missing_ok=True)
+
+        return f"[Ошибка: не удалось преобразовать DOC в DOCX через Aspose для {file_path.name}]"
+
     if ext == '.docx':
         logger = logging.getLogger("tender")
-        try:
-            logger.info(f"[DOCX] Конвертация через pandoc {file_path.name}...")
-        except Exception:
-            pass
+        logger.info(f"[DOCX] Конвертация через pandoc {file_path.name}...")
         html_raw = convert_docx_to_html(str(file_path))
         if "❌" in html_raw:
-            try:
-                logger.warning(f"Ошибка pandoc, fallback на локальный парсинг: {html_raw.split('❌')[1]}")
-            except Exception:
-                pass
-            return extract_from_docx(file_path)  # fallback
+            logger.warning(f"Ошибка pandoc, fallback на локальный парсинг: {html_raw.split('❌')[1]}")
+            return extract_from_docx(file_path)
         html_clean = clean_html_aggressive(html_raw)
-        try:
-            logger.info(f"✓ Очищено: {len(html_raw)} → {len(html_clean)} байт ({100*len(html_clean)/len(html_raw):.1f}%)")
-        except Exception:
-            pass
+        logger.info(f"✓ Очищено: {len(html_raw)} → {len(html_clean)} байт ({100*len(html_clean)/len(html_raw):.1f}%)")
         return html_clean
     
     if callable(cancel_checker) and cancel_checker():
         return "[Отменено пользователем]"
 
-    if ext in ['.xls', '.xlsx']:
-        logger = logging.getLogger("tender")
-        try:
-            logger.info(f"[Excel] Чтение {file_path.name}...")
-        except Exception:
-            pass
+    if ext == '.xls':
+        logging.getLogger("tender").info(f"[XLS] Преобразование XLS → XLSX {file_path.name}...")
+        converted_xlsx = convert_xls_to_xlsx(str(file_path))
+        if converted_xlsx:
+            try:
+                return extract_text_from_file(converted_xlsx, docling_base_url, cancel_checker)
+            finally:
+                Path(converted_xlsx).unlink(missing_ok=True)
+        return f"[Ошибка: не удалось преобразовать XLS в XLSX через Aspose для {file_path.name}]"
+
+    if ext == '.xlsx':
+        logging.getLogger("tender").info(f"[Excel] Чтение {file_path.name}...")
         return extract_from_excel(file_path)
     
     if callable(cancel_checker) and cancel_checker():

@@ -80,7 +80,7 @@ def match_term(text: str) -> Optional[dict]:
 
             contiguous = 1 if f" {a_norm} " in f" {norm} " else 0
             length_score = len(a_norm)
-            score = (matched, contiguous, length_score)
+            score = (contiguous, matched, length_score)
             if score > best_score:
                 best_score = score
                 best = term
@@ -101,7 +101,24 @@ def normalize_products(parsed: dict) -> dict:
         raw = p.get("product_name", "")
         if "original_product_name" not in p:
             p["original_product_name"] = raw
+        stored_orig = p.get("original_product_name") or ""
         term = match_term(raw)
+        # If the original document name differs from the LLM product name, try to
+        # classify it too. Override the LLM classification only when an alias
+        # appears as an exact substring in the original name (reliable signal).
+        if stored_orig and stored_orig != raw:
+            orig_term = match_term(stored_orig)
+            if orig_term and (term is None or orig_term["id"] != term["id"]):
+                orig_norm = _normalize_text(stored_orig)
+                for t in _get_terms():
+                    if t.get("id") == orig_term["id"]:
+                        if any(
+                            _normalize_text(a) and
+                            f" {_normalize_text(a)} " in f" {orig_norm} "
+                            for a in t.get("aliases", [])
+                        ):
+                            term = orig_term
+                        break
         if term:
             p["product_name"] = term["name"]
             p["type_id"] = term["id"]

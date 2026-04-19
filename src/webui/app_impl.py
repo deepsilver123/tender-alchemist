@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
@@ -31,7 +32,17 @@ class TaskState:
     files: list[str] = field(default_factory=list)
 
 
-app = FastAPI(title="Tender Alchemist Web")
+MAIN_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global MAIN_LOOP
+    MAIN_LOOP = asyncio.get_running_loop()
+    yield
+
+
+app = FastAPI(title="Tender Alchemist Web", lifespan=_lifespan)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -64,13 +75,6 @@ TASKS: Dict[str, TaskState] = {}
 WS_CLIENTS: Dict[str, set[WebSocket]] = {}
 # session_id -> set(task_id)
 SESSIONS: Dict[str, set[str]] = {}
-MAIN_LOOP: asyncio.AbstractEventLoop | None = None
-
-
-@app.on_event("startup")
-async def _on_startup() -> None:
-    global MAIN_LOOP
-    MAIN_LOOP = asyncio.get_running_loop()
 
 
 async def _broadcast(task_id: str, payload: dict[str, Any]) -> None:
@@ -344,7 +348,7 @@ async def ws_task(task_id: str, websocket: WebSocket):
 
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except Exception:
         pass
     finally:
         WS_CLIENTS.get(task_id, set()).discard(websocket)

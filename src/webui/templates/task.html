@@ -32,34 +32,44 @@
     (function () {
       var taskId = "{{ task_id }}";
       var proto = (location.protocol === "https:") ? "wss" : "ws";
-      var ws = new WebSocket(proto + "://" + location.host + "/ws/" + taskId);
       var logs = document.getElementById("logs");
       var statusEl = document.getElementById("status");
       var err = document.getElementById("error");
-      var download = null;
+      var wsCurrentStatus = '{{ status }}';
+      var wsReconnectTimer = null;
+      var ws = null;
 
       function appendLog(line) {
         logs.value += (logs.value ? "\n" : "") + line;
         logs.scrollTop = logs.scrollHeight;
       }
 
-      ws.onmessage = function (ev) {
-        try {
-          var msg = JSON.parse(ev.data);
-          if (msg.type === "log" && msg.text) appendLog(msg.text);
-          if (msg.type === "status" && msg.status) {
-            statusEl.textContent = msg.status;
-            if (msg.error) err.textContent = msg.error;
-          }
-          // server no longer provides a downloadable result link
-        } catch (_) {
-          appendLog(String(ev.data));
-        }
-      };
+      function wsConnect() {
+        if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+        ws = new WebSocket(proto + "://" + location.host + "/ws/" + taskId);
 
-      ws.onclose = function () {
-        appendLog("[WebSocket закрыт]");
-      };
+        ws.onmessage = function (ev) {
+          try {
+            var msg = JSON.parse(ev.data);
+            if (msg.type === "log" && msg.text) appendLog(msg.text);
+            if (msg.type === "status" && msg.status) {
+              wsCurrentStatus = msg.status;
+              statusEl.textContent = msg.status;
+              if (msg.error) err.textContent = msg.error;
+            }
+          } catch (_) {
+            appendLog(String(ev.data));
+          }
+        };
+
+        ws.onclose = function () {
+          if (wsCurrentStatus === 'running' || wsCurrentStatus === 'created') {
+            wsReconnectTimer = setTimeout(wsConnect, 2000);
+          }
+        };
+      }
+
+      wsConnect();
     })();
   </script>
 </body>

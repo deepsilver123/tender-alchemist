@@ -4,7 +4,6 @@ pypdf
 pandas
 requests==2.31.0
 openpyxl
-xlrd
 pdf2image
 pytesseract
 opencv-python
@@ -16,3 +15,7 @@ fastapi
 uvicorn
 jinja2
 python-multipart
+aspose-words
+websockets
+aspose-cells
+websockets

@@ -4,60 +4,102 @@ from typing import Any, Optional
 
 
 def extract_json_from_text(text: str) -> Any:
-    """Extract the first JSON object/array from text and return the raw JSON string.
+    """Extract the first JSON object/array from text.
 
-    Behavior:
-    - If a JSON block is found and can be parsed, return the cleaned JSON string.
-    - If no JSON is found or parsing fails, return None.
-
-    This function is conservative: callers that need a Python object should
-    call ``json.loads()`` on the returned string. Some callers in the
-    codebase may also accept a dict/list; other code handles both forms.
+    If parsing succeeds, this function returns the parsed Python object.
+    If no JSON can be found or parsing fails, it returns None.
     """
     if not text:
         return None
 
-    # 1. Try fenced block: capture everything between ``` opening and ``` closing
-    fenced = re.search(r'```(?:json)?\s*\n(.*?)\n?\s*```', text, re.DOTALL | re.IGNORECASE)
-    candidate = fenced.group(1).strip() if fenced else None
+    def extract_fenced_block(src: str) -> Optional[str]:
+        m = re.search(r'```(?:json)?\s*[\r\n]+(.*?)[\r\n]*```', src, re.DOTALL | re.IGNORECASE)
+        return m.group(1).strip() if m else None
 
-    # 2. Fallback: greedy match for outermost { } or [ ]
-    if not candidate:
-        m = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
-        candidate = m.group(1) if m else None
+    def extract_bracket_json(src: str) -> Optional[str]:
+        start = None
+        stack = []
+        in_string = False
+        escape = False
+        for idx, ch in enumerate(src):
+            if escape:
+                escape = False
+                continue
+            if ch == '\\':
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch in '{[':
+                if start is None:
+                    start = idx
+                stack.append(ch)
+                continue
+            if ch in '}]' and stack:
+                open_ch = stack[-1]
+                if (open_ch == '{' and ch == '}') or (open_ch == '[' and ch == ']'):
+                    stack.pop()
+                    if not stack and start is not None:
+                        return src[start:idx + 1]
+                else:
+                    return None
+        return None
 
+    candidate = extract_fenced_block(text) or extract_bracket_json(text)
     if not candidate:
         return None
 
-    # 3. Strip JS-style // line comments (not valid JSON)
     candidate = re.sub(r'//[^\n]*', '', candidate)
+    candidate = candidate.replace('\u201c', '"').replace('\u201d', '"')
+    candidate = candidate.replace('\u2018', "'").replace('\u2019', "'")
 
-    # Helper: try to clean candidate and return the cleaned string if parseable
-    def _try_clean_and_return(s: str) -> Optional[str]:
+    def _repair_json_text(s: str) -> str:
+        lines = s.splitlines()
+        repaired = []
+        for line in lines:
+            # Fix lines like: "key": "value": "extra"
+            m = re.match(r'^(\s*"[^"]+"\s*:\s*"[^"]*")\s*:\s*"[^"]*"(,?)\s*$', line)
+            if m:
+                line = f"{m.group(1)}{m.group(2)}"
+            repaired.append(line)
+
+        final_lines = []
+        for idx, line in enumerate(repaired):
+            stripped = line.rstrip()
+            next_line = repaired[idx + 1].lstrip() if idx + 1 < len(repaired) else ''
+            if (
+                stripped.endswith('"')
+                and next_line.startswith('"')
+                and not stripped.endswith(',')
+                and not next_line.startswith('}')
+                and not next_line.startswith(']')
+            ):
+                stripped += ','
+            final_lines.append(stripped)
+
+        repaired_text = '\n'.join(final_lines)
+        repaired_text = re.sub(r',\s*([}\]])', r'\1', repaired_text)
+        return repaired_text
+
+    def _try_parse(s: str) -> Optional[Any]:
         try:
-            # try as-is
-            json.loads(s)
-            return s
+            return json.loads(s)
+        except Exception:
+            pass
+        repaired = _repair_json_text(s)
+        try:
+            return json.loads(repaired)
         except Exception:
             pass
         try:
-            # fix trailing commas
-            cleaned = re.sub(r',\s*([}\]])', r'\1', s)
-            json.loads(cleaned)
-            return cleaned
+            cleaned = re.sub(r',\s*([}\]])', r'\1', repaired)
+            return json.loads(cleaned)
         except Exception:
             pass
-        try:
-            # fix smart/curly quotes and trailing commas
-            candidate2 = (
-                s.replace('\u201c', '"').replace('\u201d', '"')
-                 .replace('\u2018', "'").replace('\u2019', "'")
-            )
-            cleaned2 = re.sub(r',\s*([}\]])', r'\1', candidate2)
-            json.loads(cleaned2)
-            return cleaned2
-        except Exception:
-            return None
+        return None
 
-    return _try_clean_and_return(candidate)
+    return _try_parse(candidate)
 
