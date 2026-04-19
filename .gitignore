@@ -13,6 +13,8 @@
 !/.dockerignore
 !/.env.example
 !/run_webui.py
+!/searxng/
+!/searxng/**
 
 # Ignore Python cache inside allowed dirs
 # Ignore Python bytecode and cache
