@@ -21,7 +21,6 @@
       <h2 style="margin:0;">Задача: {{ task_id }}</h2>
       <span id="status" class="badge">{{ status }}</span>
       <a href="/" class="btn">Новая задача</a>
-      <a id="download" href="{{ download_url }}" class="btn" style="display: {% if download_url %}inline-block{% else %}none{% endif %};">Скачать JSON</a>
     </div>
 
     <p class="muted">Логи обновляются в реальном времени по WebSocket.</p>
@@ -37,7 +36,7 @@
       var logs = document.getElementById("logs");
       var statusEl = document.getElementById("status");
       var err = document.getElementById("error");
-      var download = document.getElementById("download");
+      var download = null;
 
       function appendLog(line) {
         logs.value += (logs.value ? "\n" : "") + line;
@@ -52,10 +51,7 @@
             statusEl.textContent = msg.status;
             if (msg.error) err.textContent = msg.error;
           }
-          if (msg.type === "result" && msg.download) {
-            download.href = msg.download;
-            download.style.display = "inline-block";
-          }
+          // server no longer provides a downloadable result link
         } catch (_) {
           appendLog(String(ev.data));
         }

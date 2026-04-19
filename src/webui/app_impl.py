@@ -196,15 +196,15 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
 
         state.status = "done"
         state.parsed = result.get("parsed")
-        state.result_path = result.get("result_path")
-        state.prompt_path = result.get("prompt_path")
+        # We no longer use a separate 'results' folder; parsed result saved under LOG_DIR/<task_id>/result.json
+        state.result_path = None
+        state.prompt_path = None
         state.raw_path = result.get("raw_path")
         await _broadcast(task_id, {"type": "status", "status": state.status})
         try:
             await _broadcast(task_id, {"type": "result_data", "json": state.parsed})
         except Exception:
             pass
-        await _broadcast(task_id, {"type": "result", "download": f"/download/{task_id}"})
     except Exception as e:
         state.status = "failed"
         state.error = str(e)
@@ -259,14 +259,14 @@ async def index(request: Request, task_id: str | None = None):
                 initial_json = json.dumps(state.parsed, ensure_ascii=False, indent=2) if state.parsed is not None else ""
             except Exception:
                 initial_json = ""
-            download_url = f"/download/{task_id}" if state.result_path else ""
+            # raw availability: check persisted log file directly
+            raw_path = LOG_DIR / task_id / 'raw_answer.log'
             context.update(
                 task_id=task_id,
                 status=state.status,
                 initial_logs=initial_logs,
                 initial_json=initial_json,
-                download_url=download_url,
-                raw_available=bool(state.raw_path),
+                raw_available=raw_path.exists(),
                 error=state.error or "",
                 task_files=state.files,
             )
@@ -340,8 +340,6 @@ async def ws_task(task_id: str, websocket: WebSocket):
             await websocket.send_text(json.dumps({"type": "log", "text": line}, ensure_ascii=False))
         if state.parsed is not None:
             await websocket.send_text(json.dumps({"type": "result_data", "json": state.parsed}, ensure_ascii=False))
-        if state.result_path:
-            await websocket.send_text(json.dumps({"type": "result", "download": f"/download/{task_id}"}, ensure_ascii=False))
 
         while True:
             await websocket.receive_text()
@@ -351,15 +349,7 @@ async def ws_task(task_id: str, websocket: WebSocket):
         WS_CLIENTS.get(task_id, set()).discard(websocket)
 
 
-@app.get("/download/{task_id}")
-async def download_result(task_id: str):
-    state = TASKS.get(task_id)
-    if not state or not state.result_path:
-        return HTMLResponse("Result is not ready", status_code=404)
-    path = Path(state.result_path)
-    if not path.exists():
-        return HTMLResponse("Result file is missing", status_code=404)
-    return FileResponse(path=str(path), filename=path.name, media_type="application/json")
+
 
 
 @app.get("/raw/{task_id}")
@@ -369,16 +359,13 @@ async def raw_response(request: Request, task_id: str):
     if not session_id or task_id not in SESSIONS.get(session_id, set()):
         return HTMLResponse("Not found", status_code=404)
 
-    state = TASKS.get(task_id)
-    if not state or not state.raw_path:
+    # Read the persisted raw response from the logs folder (LOG_DIR/<task_id>/raw_answer.log)
+    raw_path = LOG_DIR / task_id / 'raw_answer.log'
+    if not raw_path.exists():
         return HTMLResponse("Raw response not available", status_code=404)
 
-    path = Path(state.raw_path)
-    if not path.exists():
-        return HTMLResponse("Raw file is missing", status_code=404)
-
     try:
-        text = path.read_text(encoding="utf-8")
+        text = raw_path.read_text(encoding="utf-8")
     except Exception:
         return HTMLResponse("Failed to read raw file", status_code=500)
 

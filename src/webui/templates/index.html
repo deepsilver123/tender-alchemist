@@ -213,10 +213,6 @@
         {% endif %}
 
         <div class="task-actions">
-          <a id="download" href="{{ download_url|default('') }}" class="download-btn"
-             style="display:{% if download_url %}inline-flex{% else %}none{% endif %};">
-            ⬇ Скачать JSON
-          </a>
           <a href="/" class="ghost-btn">＋ Новая задача</a>
         </div>
       </div>
@@ -354,7 +350,6 @@
   var logs        = document.getElementById('logs');
   var statusBadge = document.getElementById('statusBadge');
   var errEl       = document.getElementById('error');
-  var download    = document.getElementById('download');
   var codeEl      = document.getElementById('jsonCode');
   var resultCard  = document.getElementById('resultCard');
   var rawCard     = document.getElementById('rawCard');
@@ -440,11 +435,7 @@
         if (msg.error && errEl) { errEl.textContent = msg.error; errEl.style.display = 'block'; }
       }
 
-      if (msg.type === 'result' && msg.download) {
-        download.href = msg.download;
-        download.style.display = 'inline-flex';
-        if (rawCard) rawCard.style.display = 'block';
-      }
+      // 'result' broadcast with download is disabled (server no longer provides downloadable results)
 
       if (msg.type === 'result_data' && msg.json) {
         try {

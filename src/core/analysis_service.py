@@ -102,22 +102,12 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
         combined_text = '\n'.join(p for p in combined_text_parts if p)
         await _maybe_await(send_log("Сформирован общий текст, вызываю модель"))
 
-        # Ensure results folder for this task exists and save prompt there
-        out_dir = Path('results') / task_id
-        os.makedirs(out_dir, exist_ok=True)
-        prompt_file = out_dir / 'prompt.txt'
+        # Persist prompt to per-task log folder (we no longer use a 'results' folder)
+        task_log_dir = LOG_DIR / task_id
+        task_log_dir.mkdir(parents=True, exist_ok=True)
         try:
-            prompt_file.write_text(combined_text, encoding='utf-8')
-            await _maybe_await(send_log(f"📁 prompt сохранён: {prompt_file}"))
-        except Exception as e:
-            logging.getLogger("tender").exception("Ошибка записи prompt в results: %s", e)
-
-        # Also save prompt copy to LOG_DIR/<task_id>/prompt.html
-        try:
-            task_log_dir = LOG_DIR / task_id
-            task_log_dir.mkdir(parents=True, exist_ok=True)
             (task_log_dir / 'prompt.html').write_text(combined_text, encoding='utf-8')
-            await _maybe_await(send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.html'}"))
+            await _maybe_await(send_log(f"📁 prompt сохранён в лог: {task_log_dir / 'prompt.html'}"))
         except Exception as e:
             logging.getLogger("tender").exception("Ошибка записи prompt в лог: %s", e)
 
@@ -142,45 +132,28 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
         else:
             parsed = parsed_raw
 
-        # save raw model response into results and copy to logs
+        # save raw model response directly into per-task log folder
         raw_file = None
         if model_resp:
-            raw_file = out_dir / 'raw.txt'
             try:
-                raw_file.write_text(model_resp, encoding='utf-8')
+                (task_log_dir / 'raw_answer.log').write_text(model_resp, encoding='utf-8')
+                raw_file = task_log_dir / 'raw_answer.log'
             except Exception as e:
-                logging.getLogger("tender").exception("Ошибка записи raw.txt: %s", e)
-                raw_file = None
-            else:
-                # copy to per-task log folder
-                try:
-                    task_log_dir = LOG_DIR / task_id
-                    task_log_dir.mkdir(parents=True, exist_ok=True)
-                    (task_log_dir / 'raw_answer.txt').write_text(model_resp, encoding='utf-8')
-                except Exception as e:
-                    logging.getLogger("tender").exception("Ошибка записи raw в лог: %s", e)
+                logging.getLogger("tender").exception("Ошибка записи raw в лог: %s", e)
 
-        out_file = out_dir / 'result.json'
+        # persist final result into per-task log folder
         try:
-            with open(out_file, 'w', encoding='utf-8') as fh:
+            with open(task_log_dir / 'result.json', 'w', encoding='utf-8') as fh:
                 json.dump(parsed, fh, ensure_ascii=False, indent=2)
+            await _maybe_await(send_log(f"Готово, результат сохранён в {task_log_dir / 'result.json'}"))
         except Exception as e:
-            logging.getLogger("tender").exception("Ошибка записи result.json: %s", e)
-        else:
-            # copy result to per-task log folder (as JSON in result.json)
-            try:
-                task_log_dir = LOG_DIR / task_id
-                task_log_dir.mkdir(parents=True, exist_ok=True)
-                with open(task_log_dir / 'result.json', 'w', encoding='utf-8') as fh:
-                    json.dump(parsed, fh, ensure_ascii=False, indent=2)
-            except Exception as e:
-                logging.getLogger("tender").exception("Ошибка записи result в лог: %s", e)
+            logging.getLogger("tender").exception("Ошибка записи результата в лог: %s", e)
 
-        await _maybe_await(send_log(f"Готово, сохранено в {out_file}"))
+        # Return parsed data only; we avoid using a separate 'results' folder.
         return {
             "parsed": parsed,
-            "result_path": str(out_file),
-            "prompt_path": str(prompt_file) if 'prompt_file' in locals() else None,
+            "result_path": None,
+            "prompt_path": None,
             "raw_path": str(raw_file) if raw_file is not None else None,
         }
     finally:

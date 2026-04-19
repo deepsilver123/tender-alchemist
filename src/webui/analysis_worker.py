@@ -81,12 +81,9 @@ def run_analysis(
 
     combined_text = "\n".join(p for p in combined_parts if p)
 
-    out_dir = Path("results") / task_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        (out_dir / "combined.html").write_text(combined_text, encoding="utf-8")
-    except Exception:
-        pass
+    # Persist task folder so prompt/raw/result can be written there.
+    task_log_dir = LOG_DIR / task_id
+    task_log_dir.mkdir(parents=True, exist_ok=True)
     send_log(f"✅ Этап 1/5 завершён: {len(combined_text)} символов суммарно")
 
     # ── Этап 2: поиск кандидатов ─────────────────────────────────────────
@@ -108,17 +105,8 @@ def run_analysis(
 
     prompt_file: Optional[Path] = None
     try:
-        prompt_file = out_dir / "prompt.txt"
-        prompt_file.write_text(full_prompt, encoding="utf-8")
-        send_log(f"📁 prompt сохранён: {prompt_file}")
-    except Exception:
-        prompt_file = None
-    # Also save prompt copy to LOG_DIR/<task_id>/prompt.html
-    try:
-        task_log_dir = LOG_DIR / task_id
-        task_log_dir.mkdir(parents=True, exist_ok=True)
         (task_log_dir / "prompt.html").write_text(full_prompt, encoding="utf-8")
-        send_log(f"📁 prompt скопирован в лог: {task_log_dir / 'prompt.html'}")
+        send_log(f"📁 prompt сохранён в лог: {task_log_dir / 'prompt.html'}")
     except Exception as e:
         send_log(f"⚠️ Не удалось сохранить prompt в лог: {e}")
 
@@ -150,18 +138,11 @@ def run_analysis(
     else:
         send_log(f"✅ Этап 4/5 завершён: ответ получен за {ai_time:.2f} сек")
         try:
-            raw_file = out_dir / "raw.txt"
-            raw_file.write_text(model_resp, encoding="utf-8")
-            send_log(f"📁 Сырой ответ сохранён: {raw_file}")
-        except Exception:
-            raw_file = None
-        # Also save raw response to LOG_DIR/<task_id>/raw_answer.txt
-        try:
-            task_log_dir = LOG_DIR / task_id
-            task_log_dir.mkdir(parents=True, exist_ok=True)
             (task_log_dir / "raw_answer.log").write_text(model_resp, encoding="utf-8")
-            send_log(f"📁 Raw скопирован в лог: {task_log_dir / 'raw_answer.log'}")
+            raw_file = task_log_dir / "raw_answer.log"
+            send_log(f"📁 Raw сохранён в лог: {raw_file}")
         except Exception as e:
+            raw_file = None
             send_log(f"⚠️ Не удалось сохранить raw в лог: {e}")
 
         send_log("Извлекаю JSON из ответа модели")
@@ -177,27 +158,16 @@ def run_analysis(
     except Exception:
         pass
 
-    out_file = out_dir / "result.json"
     try:
-        with open(out_file, "w", encoding="utf-8") as fh:
+        with open(task_log_dir / "result.json", "w", encoding="utf-8") as fh:
             json.dump(parsed, fh, ensure_ascii=False, indent=2)
-        send_log(f"✅ Результат сохранён: {out_file}")
+        send_log(f"✅ Результат сохранён в лог: {task_log_dir / 'result.json'}")
     except Exception as e:
-        send_log(f"❌ Ошибка сохранения: {e}")
-    else:
-        # Also save result copy to LOG_DIR/<task_id>/result.json
-        try:
-            task_log_dir = LOG_DIR / task_id
-            task_log_dir.mkdir(parents=True, exist_ok=True)
-            with open(task_log_dir / "result.json", "w", encoding="utf-8") as fh:
-                json.dump(parsed, fh, ensure_ascii=False, indent=2)
-            send_log(f"📁 Результат скопирован в лог: {task_log_dir / 'result.json'}")
-        except Exception as e:
-            send_log(f"⚠️ Не удалось сохранить результат в лог: {e}")
+        send_log(f"❌ Ошибка сохранения результата в лог: {e}")
 
     return {
         "parsed": parsed,
-        "result_path": str(out_file),
-        "prompt_path": str(prompt_file) if prompt_file else None,
+        "result_path": None,
+        "prompt_path": None,
         "raw_path": str(raw_file) if raw_file else None,
     }

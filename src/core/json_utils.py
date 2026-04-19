@@ -1,6 +1,6 @@
 import re
 import json
-from typing import Any
+from typing import Any, Optional
 
 
 def extract_json_from_text(text: str) -> Any:
