@@ -27,8 +27,8 @@ MONTH_NAMES_RU = [
 def format_russian_datetime(dt: datetime) -> str:
     return f"{dt.day} {MONTH_NAMES_RU[dt.month - 1]} {dt.year}, {dt:%H:%M}"
 
-from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import Body, FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 import logging
@@ -49,6 +49,7 @@ class TaskState:
     raw_path: str | None = None
     error: str | None = None
     files: list[str] = field(default_factory=list)
+    title: str = ""
     created_at: str = ""
 
 
@@ -109,6 +110,7 @@ def _save_state() -> None:
                 "id": st.id,
                 "status": st.status,
                 "files": st.files,
+                "title": st.title,
                 "error": st.error,
                 "created_at": st.created_at,
             }
@@ -163,6 +165,7 @@ def _load_state() -> None:
             parsed=parsed,
             error=meta.get("error"),
             files=meta.get("files", []),
+            title=meta.get("title", ""),
             created_at=created_at,
             raw_path=str(raw_path_file) if raw_path_file.exists() else None,
         )
@@ -350,7 +353,12 @@ async def index(request: Request, task_id: str | None = None):
     my_tasks = []
     for tid in my_task_ids:
         st = TASKS.get(tid)
-        my_tasks.append({"id": tid, "status": st.status if st else "unknown", "files": st.files if st else []})
+        my_tasks.append({
+            "id": tid,
+            "status": st.status if st else "unknown",
+            "files": st.files if st else [],
+            "title": st.title if st and st.title else "Без названия",
+        })
 
     context: dict[str, Any] = {"request": request, "my_tasks": my_tasks}
 
@@ -380,6 +388,7 @@ async def index(request: Request, task_id: str | None = None):
                 raw_available=raw_path.exists(),
                 error=state.error or "",
                 task_files=state.files,
+                task_title=state.title or "",
             )
 
     response = TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
@@ -411,6 +420,7 @@ async def start_analyze(
     TASKS[task_id] = TaskState(
         id=task_id,
         files=[f.filename or "file" for f in files],
+        title="",
         created_at=format_russian_datetime(datetime.now().astimezone()),
     )
     asyncio.create_task(_run_task(task_id, saved, ministral_url or None, ministral_model or None, docling_base or None))
@@ -427,6 +437,37 @@ async def start_analyze(
     if created_new_session:
         redirect.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
     return redirect
+
+
+@app.post("/task/{task_id}/rename")
+async def rename_task(request: Request, task_id: str, payload: dict[str, str] = Body(...)):
+    session_id = request.cookies.get("tender_session")
+    if not session_id or task_id not in SESSIONS.get(session_id, set()) or task_id not in TASKS:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+    title = (payload.get("title") or "").strip()
+    TASKS[task_id].title = title
+    _save_state()
+    return JSONResponse({"status": "ok", "title": title or "Без названия"})
+
+
+@app.delete("/task/{task_id}")
+async def delete_task(request: Request, task_id: str):
+    session_id = request.cookies.get("tender_session")
+    if not session_id or task_id not in SESSIONS.get(session_id, set()) or task_id not in TASKS:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+    TASKS.pop(task_id, None)
+    for tids in SESSIONS.values():
+        tids.discard(task_id)
+    try:
+        shutil.rmtree(LOG_DIR / task_id, ignore_errors=True)
+    except Exception:
+        pass
+    try:
+        shutil.rmtree(UPLOAD_ROOT / task_id, ignore_errors=True)
+    except Exception:
+        pass
+    _save_state()
+    return JSONResponse({"status": "ok"})
 
 
 @app.get("/task/{task_id}")

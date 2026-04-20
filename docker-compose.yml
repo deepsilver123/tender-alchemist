@@ -101,6 +101,7 @@ services:
       - MINISTRAL_BASE_URL=http://ollama:11434
       - MINISTRAL_MODEL=ministral-3:3b
       - DOCLING_BASE_URL=http://docling-serve:5001
+      - SEARXNG_URL=http://searxng-core:8080
       - TZ=Asia/Irkutsk
     volumes:
       - webui_data:/app/data
@@ -108,6 +109,7 @@ services:
     depends_on:
       - ollama
       - docling-serve
+      - searxng-core
     restart: unless-stopped
 
 volumes:

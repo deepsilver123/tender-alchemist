@@ -163,7 +163,6 @@ engines:
     categories: general
     search_type: web
     shortcut: yd
-    disabled: true
 
 doi_resolvers:
   oadoi.org: 'https://oadoi.org/'

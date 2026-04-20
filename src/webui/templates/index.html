@@ -27,12 +27,18 @@
     .task-list { flex: 1; overflow-y: auto; padding: 4px 12px 16px; }
     .task-list::-webkit-scrollbar { width: 5px; }
     .task-list::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-    .task-card { display: block; padding: 11px 12px; border-radius: 8px; text-decoration: none; color: #94a3b8; margin-bottom: 4px; transition: background .12s; border: 1px solid transparent; }
-    .task-card:hover { background: #1e293b; color: #cbd5e1; }
+    .task-card { position: relative; display: block; padding: 11px 12px; border-radius: 8px; color: #94a3b8; margin-bottom: 4px; transition: background .12s, transform .12s; border: 1px solid transparent; background: transparent; }
+    .task-card:hover { background: #1e293b; color: #cbd5e1; transform: translateY(-1px); }
     .task-card.active { background: #162032; border-color: rgba(37,99,235,.4); color: #e2e8f0; }
+    .task-card-link { display: block; text-decoration: none; color: inherit; }
+    .task-card-link:hover { text-decoration: none; }
     .task-card-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-    .task-card-id { font-family: 'Consolas', monospace; font-size: 15px; font-weight: 600; }
+    .task-card-title { display: block; font-size: 15px; font-weight: 700; color: inherit; margin-bottom: 4px; }
+    .task-card-id { font-family: 'Consolas', monospace; font-size: 13px; color: #94a3b8; }
     .task-card-files { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .task-card-delete { position: absolute; right: 10px; bottom: 10px; border: none; background: transparent; color: #ef4444; width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s ease, color .15s ease; }
+    .task-card-delete:hover { transform: scale(1.1); color: #dc2626; }
+    .task-card-delete:focus { outline: 2px solid rgba(239,68,68,.4); outline-offset: 2px; }
     .file-chip { display: inline-block; padding: 4px 10px; background: rgba(148,163,184,.06); color: #e2e8f0; border: 1px solid rgba(148,163,184,.12); border-radius: 6px; font-size: 14px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .task-card:hover .file-chip { color: #cbd5e1; border-color: rgba(203,213,225,.25); }
     .task-card.active .file-chip { color: #bfdbfe; border-color: rgba(37,99,235,.35); background: rgba(37,99,235,.1); }
@@ -86,7 +92,12 @@
     .task-header-card .card-title { color: #94a3b8; margin-bottom: 4px; }
     .task-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .task-id-display { font-family: 'Consolas', monospace; font-size: 20px; font-weight: 700; color: #f8fafc; word-break: break-all; margin: 4px 0 14px; }
-    .task-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .task-title-row { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .task-title-input { width: 100%; max-width: 480px; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 10px 14px; background: rgba(255,255,255,.08); color: #f8fafc; font-size: 16px; }
+    .task-title-input::placeholder { color: rgba(248,250,252,.6); }
+    .task-header-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .task-header-actions .ghost-btn { background: rgba(255,255,255,.12); color: #f8fafc; }
+    .task-delete-btn { background: rgba(248,113,113,.18); color: #fee2e2; }
     .ghost-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: rgba(255,255,255,.07); color: #94a3b8; border-radius: 8px; text-decoration: none; font-size: 15px; transition: background .2s; }
     .ghost-btn:hover { background: rgba(255,255,255,.12); color: #e2e8f0; }
     .uploaded-files { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 14px; }
@@ -110,6 +121,27 @@
 
     /* ─── Error ─── */
     .error-box { background: #450a0a; color: #fca5a5; border-radius: 8px; padding: 11px 14px; font-size: 13px; margin-top: 8px; }
+
+    .friendly-output { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; }
+    .friendly-product-card { margin-bottom: 22px; }
+    .friendly-product-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: #0f172a; }
+    .friendly-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    .friendly-table th,
+    .friendly-table td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; }
+    .friendly-table th { background: #eef2ff; font-weight: 700; color: #0f172a; }
+    .friendly-section-title { font-size: 15px; font-weight: 700; margin: 18px 0 10px; color: #1e293b; }
+    .friendly-empty { color: #475569; font-size: 15px; }
+    .friendly-select-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .friendly-select-row label { font-size: 14px; color: #334155; }
+    .friendly-product-select { width: 100%; max-width: 320px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font-size: 15px; }
+
+    .collapsible-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+    .collapsible-panel[open] { box-shadow: 0 2px 12px rgba(15, 23, 42, .08); }
+    .collapsible-panel summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 20px; background: #f8fafc; border-radius: 12px 12px 0 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+    .collapsible-panel summary::marker { display: none; }
+    .collapsible-panel summary::after { content: '▾'; font-size: 14px; transition: transform .2s ease; color: #334155; }
+    .collapsible-panel:not([open]) summary::after { transform: rotate(-90deg); }
+    .collapsible-panel .collapse-body { padding: 0 20px 20px; }
 
     /* ─── Spoiler ─── */
     details summary { cursor: pointer; list-style: none; }
@@ -163,22 +195,37 @@
       <div class="sidebar-section-label">Мои задачи</div>
     </div>
 
-    <div class="task-list">
+    <div id="taskListContainer" class="task-list">
       {% if my_tasks %}
         {% for t in my_tasks %}
-        <a href="/?task_id={{ t.id }}" class="task-card {% if t.id == (task_id|default('')) %}active{% endif %}">
-          <div class="task-card-row">
-            <span class="task-card-id">{{ t.id[:8] }}…</span>
-            <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
-          </div>
-          {% if t.files %}
-          <div class="task-card-files">
-            {% for f in t.files %}
-            <span class="file-chip" title="{{ f }}">{{ f }}</span>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </a>
+        <div class="task-card {% if t.id == (task_id|default('')) %}active{% endif %}">
+          <a href="/?task_id={{ t.id }}" class="task-card-link">
+            <div class="task-card-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+              <span class="task-card-title">{{ t.title }}</span>
+              <span class="task-card-id">{{ t.id[:8] }}…</span>
+            </div>
+            <div class="task-card-row" style="justify-content:space-between; width:100%;">
+              <span></span>
+              <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+            </div>
+            {% if t.files %}
+            <div class="task-card-files">
+              {% for f in t.files %}
+              <span class="file-chip" title="{{ f }}">{{ f }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </a>
+          <button type="button" class="task-card-delete" data-task-id="{{ t.id }}" title="Удалить задачу" aria-label="Удалить задачу">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 7H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M7 7V19C7 19.5523 7.44772 20 8 20H16C16.5523 20 17 19.5523 17 19V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M10 11V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M14 11V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M9 7V5C9 4.44772 9.44772 4 10 4H14C14.5523 4 15 4.44772 15 5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
         {% endfor %}
       {% else %}
         <div class="empty-tasks">
@@ -213,29 +260,60 @@
         </div>
         {% endif %}
 
+        <div class="task-title-row">
+          <input id="taskTitleInput" class="task-title-input" type="text" value="{{ task_title|default('') }}" placeholder="Без названия" />
+          <div class="task-header-actions">
+            <button type="button" id="renameTaskBtn" class="ghost-btn">Сохранить название</button>
+            <button type="button" id="deleteTaskBtn" class="ghost-btn task-delete-btn">Удалить задачу</button>
+          </div>
+        </div>
+
         <div class="task-actions">
           <a href="/" class="ghost-btn">＋ Новая задача</a>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">🖥 Логи обработки</div>
-        <div id="logs" class="log-panel" role="log" aria-live="polite">{% if initial_logs %}{{ initial_logs }}{% else %}<span class="log-empty">Ожидание запуска…</span>{% endif %}</div>
-        <div id="error" class="error-box" style="display:{% if error %}block{% else %}none{% endif %};">{{ error|default('') }}</div>
+        <details id="logsDetails" class="collapsible-panel" open>
+          <summary>🖥 Логи обработки</summary>
+          <div class="collapse-body">
+            <div id="logs" class="log-panel" role="log" aria-live="polite">{% if initial_logs %}{{ initial_logs }}{% else %}<span class="log-empty">Ожидание запуска…</span>{% endif %}</div>
+            <div id="error" class="error-box" style="display:{% if error %}block{% else %}none{% endif %};">{{ error|default('') }}</div>
+          </div>
+        </details>
       </div>
 
       <div class="card" id="resultCard" style="display:{% if initial_json %}block{% else %}none{% endif %};">
-        <div class="card-title">✅ Результат JSON</div>
-        <div class="json-wrap">
-          <button id="copyBtn" class="copy-btn">Копировать</button>
-          <pre id="jsonPreview" class="json-preview"><code id="jsonCode" class="json">{{ initial_json|default('') }}</code></pre>
-        </div>
+        <details id="jsonDetails" class="collapsible-panel" open>
+          <summary>✅ Результат JSON</summary>
+          <div class="collapse-body">
+            <div class="json-wrap">
+              <button id="copyBtn" class="copy-btn">Копировать</button>
+              <pre id="jsonPreview" class="json-preview"><code id="jsonCode" class="json">{{ initial_json|default('') }}</code></pre>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="card" id="friendlyResultCard" style="display:{% if initial_json %}block{% else %}none{% endif %};">
+        <details id="friendlyDetails" class="collapsible-panel" open>
+          <summary>📋 Удобный просмотр JSON</summary>
+          <div class="collapse-body">
+            <div id="friendlySelectRow" class="friendly-select-row" style="display:none; margin-bottom: 14px;">
+              <label for="friendlyProductSelect">Показать товар:</label>
+              <select id="friendlyProductSelect" class="friendly-product-select"></select>
+            </div>
+            <div id="friendlyOutput" class="friendly-output"></div>
+          </div>
+        </details>
       </div>
 
       <div class="card" id="rawCard" style="display:{% if raw_available %}block{% else %}none{% endif %};">
-        <details id="rawDetails">
-          <summary class="card-title" style="margin-bottom:0; cursor:pointer;">🔍 Сырой ответ модели</summary>
-          <pre id="rawPreview" class="log-panel" style="margin-top:12px; min-height:60px; white-space:pre-wrap;"></pre>
+        <details id="rawDetails" class="collapsible-panel" open>
+          <summary>🔍 Сырой ответ модели</summary>
+          <div class="collapse-body">
+            <pre id="rawPreview" class="log-panel" style="margin-top:0; min-height:60px; white-space:pre-wrap;"></pre>
+          </div>
         </details>
       </div>
 
@@ -346,6 +424,26 @@
 
   // ─── Task view ────────────────────────────────────────────────────────────
   var taskId = "{{ task_id|default('') }}";
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('.task-card-delete');
+    if (!btn) return;
+    event.preventDefault();
+    var deleteTaskId = btn.getAttribute('data-task-id');
+    if (!deleteTaskId || !confirm('Удалить задачу? Данные будут удалены.')) return;
+    fetch('/task/' + deleteTaskId, { method: 'DELETE' }).then(function (res) {
+      if (!res.ok) throw new Error('Ошибка удаления');
+      return res.json();
+    }).then(function () {
+      if (deleteTaskId === taskId) {
+        window.location.href = '/';
+      } else {
+        btn.closest('.task-card')?.remove();
+      }
+    }).catch(function () {
+      alert('Не удалось удалить задачу');
+    });
+  });
+
   if (!taskId) return;
 
   var logs        = document.getElementById('logs');
@@ -353,11 +451,15 @@
   var errEl       = document.getElementById('error');
   var codeEl      = document.getElementById('jsonCode');
   var resultCard  = document.getElementById('resultCard');
+  var friendlyResultCard = document.getElementById('friendlyResultCard');
+  var friendlySelectRow = document.getElementById('friendlySelectRow');
+  var friendlyProductSelect = document.getElementById('friendlyProductSelect');
   var rawCard     = document.getElementById('rawCard');
   var rawDetails  = document.getElementById('rawDetails');
   var rawPreview  = document.getElementById('rawPreview');
   var copyBtn     = document.getElementById('copyBtn');
   var rawFetched  = false;
+  var friendlyJsonData = null;
 
   function clearLogEmpty() {
     if (logs) logs.querySelectorAll('.log-empty').forEach(function (e) { e.remove(); });
@@ -384,6 +486,10 @@
   if (codeEl && codeEl.textContent && codeEl.textContent.trim() && window.hljs) {
     hljs.highlightElement(codeEl);
   }
+  if (codeEl && codeEl.textContent && codeEl.textContent.trim()) {
+    renderFriendlyJson(codeEl.textContent, 0);
+    if (friendlyResultCard) friendlyResultCard.style.display = 'block';
+  }
 
   // copy button
   if (copyBtn) {
@@ -403,6 +509,186 @@
         } catch (e) { alert('Копирование не поддерживается'); }
       });
     });
+  }
+
+  var taskTitleInput = document.getElementById('taskTitleInput');
+  var renameTaskBtn = document.getElementById('renameTaskBtn');
+  var deleteTaskBtn = document.getElementById('deleteTaskBtn');
+
+  function updateSidebarTitle(newTitle) {
+    var taskLink = document.querySelector('.task-card.active .task-card-title');
+    if (taskLink) {
+      taskLink.textContent = newTitle || 'Без названия';
+    }
+  }
+
+  if (renameTaskBtn && taskTitleInput) {
+    renameTaskBtn.addEventListener('click', function () {
+      var newTitle = taskTitleInput.value.trim();
+      fetch('/task/' + taskId + '/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Ошибка сервера');
+        return res.json();
+      }).then(function (data) {
+        if (data && data.title) {
+          taskTitleInput.value = data.title === 'Без названия' ? '' : data.title;
+          updateSidebarTitle(data.title);
+          alert('Название задачи сохранено');
+        }
+      }).catch(function () {
+        alert('Не удалось сохранить название задачи');
+      });
+    });
+  }
+
+  if (deleteTaskBtn) {
+    deleteTaskBtn.addEventListener('click', function () {
+      if (!confirm('Удалить задачу? Данные будут удалены.')) {
+        return;
+      }
+      fetch('/task/' + taskId, { method: 'DELETE' }).then(function (res) {
+        if (!res.ok) throw new Error('Ошибка удаления');
+        return res.json();
+      }).then(function () {
+        window.location.href = '/';
+      }).catch(function () {
+        alert('Не удалось удалить задачу');
+      });
+    });
+  }
+
+  if (friendlyProductSelect) {
+    friendlyProductSelect.addEventListener('change', function () {
+      var idx = parseInt(this.value, 10);
+      if (Number.isInteger(idx) && friendlyJsonData) {
+        renderFriendlyJson(friendlyJsonData, idx);
+      }
+    });
+  }
+
+  function renderFriendlyJson(data, selectedIndex) {
+    var out = document.getElementById('friendlyOutput');
+    if (!out) return;
+    out.innerHTML = '';
+
+    if (!data) {
+      out.innerHTML = '<div class="friendly-empty">Нет данных для отображения.</div>';
+      return;
+    }
+
+    var parsed = data;
+    if (typeof data === 'string') {
+      try {
+        parsed = JSON.parse(data);
+      } catch (err) {
+        out.innerHTML = '<div class="friendly-empty">Не удалось распознать JSON.</div>';
+        return;
+      }
+    }
+
+    var products = [];
+    if (Array.isArray(parsed)) {
+      products = parsed;
+    } else if (parsed && Array.isArray(parsed.products)) {
+      products = parsed.products;
+    }
+
+    if (!products.length) {
+      out.innerHTML = '<div class="friendly-empty">JSON не содержит массива товаров.</div>';
+      return;
+    }
+
+    friendlyJsonData = products;
+    selectedIndex = Number.isInteger(selectedIndex) ? selectedIndex : 0;
+    if (selectedIndex < 0 || selectedIndex >= products.length) {
+      selectedIndex = 0;
+    }
+
+    if (friendlyProductSelect && products.length > 1) {
+      friendlySelectRow.style.display = 'flex';
+      friendlyProductSelect.innerHTML = '';
+      products.forEach(function (product, index) {
+        var option = document.createElement('option');
+        var title = product.product_name || 'Товар ' + (index + 1);
+        option.value = index;
+        option.textContent = (index + 1) + '. ' + title;
+        if (index === selectedIndex) option.selected = true;
+        friendlyProductSelect.appendChild(option);
+      });
+    } else if (friendlySelectRow) {
+      friendlySelectRow.style.display = 'none';
+    }
+
+    function renderProduct(product, index) {
+      var card = document.createElement('div');
+      card.className = 'friendly-product-card';
+
+      var title = document.createElement('div');
+      title.className = 'friendly-product-title';
+      title.textContent = (product.product_name || 'Товар ' + (index + 1));
+      card.appendChild(title);
+
+      var baseTable = document.createElement('table');
+      baseTable.className = 'friendly-table';
+      baseTable.innerHTML = '<thead><tr><th>Поле</th><th>Значение</th></tr></thead>';
+      var baseBody = document.createElement('tbody');
+
+      function appendRow(label, value) {
+        var row = document.createElement('tr');
+        var th = document.createElement('th');
+        th.textContent = label;
+        var td = document.createElement('td');
+        td.textContent = value == null ? '' : value;
+        row.appendChild(th);
+        row.appendChild(td);
+        baseBody.appendChild(row);
+      }
+
+      appendRow('Название', product.product_name || '-');
+      if (product.brand_reference) {
+        var brand = product.brand_reference.brand || '-';
+        var equivalent = product.brand_reference.allow_equivalent ? 'да' : 'нет';
+        appendRow('Бренд / эквивалентность', brand + ' (эквивалентность: ' + equivalent + ')');
+      }
+      if (product.commercial_terms) {
+        appendRow('Количество', (product.commercial_terms.quantity || '-') + ' ' + (product.commercial_terms.unit || ''));
+        appendRow('Цена за ед.', product.commercial_terms.price_per_unit != null ? product.commercial_terms.price_per_unit + ' ' + (product.commercial_terms.currency || '') : '-');
+        appendRow('Сумма', product.commercial_terms.total_amount != null ? product.commercial_terms.total_amount + ' ' + (product.commercial_terms.currency || '') : '-');
+      }
+      baseTable.appendChild(baseBody);
+      card.appendChild(baseTable);
+
+      if (product.technical_requirements && typeof product.technical_requirements === 'object' && Object.keys(product.technical_requirements).length) {
+        var sectionTitle = document.createElement('div');
+        sectionTitle.className = 'friendly-section-title';
+        sectionTitle.textContent = 'Технические требования';
+        card.appendChild(sectionTitle);
+
+        var techTable = document.createElement('table');
+        techTable.className = 'friendly-table';
+        techTable.innerHTML = '<thead><tr><th>Характеристика</th><th>Значение</th></tr></thead>';
+        var techBody = document.createElement('tbody');
+        Object.keys(product.technical_requirements).forEach(function (key) {
+          var row = document.createElement('tr');
+          var th = document.createElement('th');
+          th.textContent = key;
+          var td = document.createElement('td');
+          td.textContent = product.technical_requirements[key];
+          row.appendChild(th);
+          row.appendChild(td);
+          techBody.appendChild(row);
+        });
+        techTable.appendChild(techBody);
+        card.appendChild(techTable);
+      }
+
+      out.appendChild(card);
+    }
+
+    renderProduct(products[selectedIndex], selectedIndex);
   }
 
   // lazy-load raw response
@@ -447,11 +733,14 @@
           try {
             var data = (typeof msg.json === 'string') ? JSON.parse(msg.json) : msg.json;
             codeEl.textContent = JSON.stringify(data, null, 2);
+            renderFriendlyJson(data);
           } catch (e) {
             codeEl.textContent = String(msg.json);
+            renderFriendlyJson(null);
           }
           if (window.hljs) hljs.highlightElement(codeEl);
           if (resultCard) resultCard.style.display = 'block';
+          if (friendlyResultCard) friendlyResultCard.style.display = 'block';
           if (rawCard) rawCard.style.display = 'block';
         }
       } catch (e) {
