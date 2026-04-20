@@ -3,10 +3,29 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import datetime
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict
+
+MONTH_NAMES_RU = [
+    "января",
+    "февраля",
+    "марта",
+    "апреля",
+    "мая",
+    "июня",
+    "июля",
+    "августа",
+    "сентября",
+    "октября",
+    "ноября",
+    "декабря",
+]
+
+def format_russian_datetime(dt: datetime) -> str:
+    return f"{dt.day} {MONTH_NAMES_RU[dt.month - 1]} {dt.year}, {dt:%H:%M}"
 
 from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -15,7 +34,7 @@ from fastapi.templating import Jinja2Templates
 import logging
 from core import analyze_files
 import requests
-from core.config import DATA_DIR, LOG_DIR, MINISTRAL_URL, DOCLING_URL
+from core.config import DATA_DIR, LOG_DIR, MINISTRAL_URL, DOCLING_BASE_URL
 import shutil
 
 
@@ -30,6 +49,7 @@ class TaskState:
     raw_path: str | None = None
     error: str | None = None
     files: list[str] = field(default_factory=list)
+    created_at: str = ""
 
 
 MAIN_LOOP: asyncio.AbstractEventLoop | None = None
@@ -90,6 +110,7 @@ def _save_state() -> None:
                 "status": st.status,
                 "files": st.files,
                 "error": st.error,
+                "created_at": st.created_at,
             }
         sessions_data = {sid: sorted(tids) for sid, tids in SESSIONS.items()}
         payload = {"tasks": tasks_data, "sessions": sessions_data}
@@ -113,6 +134,7 @@ def _load_state() -> None:
 
     for tid, meta in data.get("tasks", {}).items():
         status = meta.get("status", "done")
+        created_at = meta.get("created_at", "")
         # Treat tasks that were running when server stopped as failed
         if status in ("created", "running"):
             status = "failed"
@@ -141,6 +163,7 @@ def _load_state() -> None:
             parsed=parsed,
             error=meta.get("error"),
             files=meta.get("files", []),
+            created_at=created_at,
             raw_path=str(raw_path_file) if raw_path_file.exists() else None,
         )
 
@@ -237,7 +260,7 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         # Preflight: check external services (Ministral, Docling). If unreachable, abort.
         tender_logger = logging.getLogger("tender")
         effective_ministral = ministral_url or MINISTRAL_URL
-        effective_docling = docling_base or DOCLING_URL
+        effective_docling = docling_base or DOCLING_BASE_URL
 
         def _service_up(url: str) -> tuple[bool, str]:
             try:
@@ -273,7 +296,7 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
 
         result = await loop.run_in_executor(
             None,
-            lambda: web_run(task_id, file_paths, send_log_threadsafe, ministral_url, ministral_model, docling_base),
+            lambda: web_run(task_id, file_paths, send_log_threadsafe, ministral_url, ministral_model, effective_docling),
         )
 
         state.status = "done"
@@ -385,7 +408,11 @@ async def start_analyze(
         out_path.write_bytes(content)
         saved.append(str(out_path))
 
-    TASKS[task_id] = TaskState(id=task_id, files=[f.filename or "file" for f in files])
+    TASKS[task_id] = TaskState(
+        id=task_id,
+        files=[f.filename or "file" for f in files],
+        created_at=format_russian_datetime(datetime.now().astimezone()),
+    )
     asyncio.create_task(_run_task(task_id, saved, ministral_url or None, ministral_model or None, docling_base or None))
     # Associate task with session
     session_id = request.cookies.get("tender_session")
@@ -495,6 +522,7 @@ async def history_page(request: Request):
             "error": st.error or "",
             "logs": logs_text,
             "raw_available": raw_available,
+            "created_at": st.created_at,
         })
 
     my_tasks = [{"id": t["id"], "status": t["status"], "files": t["files"]} for t in tasks_detail]

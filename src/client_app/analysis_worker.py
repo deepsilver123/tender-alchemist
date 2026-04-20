@@ -56,7 +56,7 @@ class AnalysisWorker(QObject):
         try:
             start_time = time.time()
             self.log.emit(f"🚀 Начало анализа: {datetime.now().strftime('%H:%M:%S')}")
-            self.log.emit(f"📌 Этап 1/5: чтение {len(self.file_paths)} файлов")
+            self.log.emit(f"📌 Этап 1/5: чтение и конвертация документов ({len(self.file_paths)} файлов)")
 
             all_html = ""
             read_start = time.time()
@@ -111,9 +111,10 @@ class AnalysisWorker(QObject):
 
             LOG_DIR.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime("%d-%m-%Y-%H-%M")
-            with open(LOG_DIR / f"original_{timestamp}.html", "w", encoding="utf-8") as f:
+            output_path = LOG_DIR / f"original_{timestamp}.html"
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(all_html)
-            self.log.emit(f"📁 Сохранён исходный объединённый HTML: {str(LOG_DIR / f'original_{timestamp}.html}')}")
+            self.log.emit(f"📁 Сохранён исходный объединённый HTML: {output_path}")
 
             candidate_products: list[str] = []
             self.log.emit("📌 Этап 2/4: сборка итогового prompt")
@@ -173,7 +174,7 @@ class AnalysisWorker(QObject):
                 self.log.emit(f"❌ Этап 3/4: AI анализ не дал ответа ({ai_time:.2f} сек)")
                 json_str = None
             else:
-                self.log.emit(f"✅ Этап 3/4 завершён: ответ получен за {ai_time:.2f} сек")
+                self.log.emit(f"✅ Этап 3/4 завершён: JSON через Ministral получен за {ai_time:.2f} сек")
                 try:
                     raw_path = LOG_DIR / f"raw_response_{timestamp}.txt"
                     with open(raw_path, "w", encoding="utf-8") as rf:

@@ -3,12 +3,17 @@ from pathlib import Path
 import os
 
 # --- Docling Serve ---
-DOCLING_URL = os.environ.get("DOCLING_URL", "http://localhost:5001/v1/convert/file")
+DOCLING_BASE_URL = os.environ.get("DOCLING_BASE_URL", "http://localhost:5001").rstrip("/")
+DOCLING_URL = os.environ.get("DOCLING_URL", f"{DOCLING_BASE_URL}/v1/convert/file")
+DOCLING_URL_ASYNC = os.environ.get("DOCLING_URL_ASYNC", f"{DOCLING_BASE_URL}/v1/convert/file/async")
+DOCLING_STATUS_URL = os.environ.get("DOCLING_STATUS_URL", f"{DOCLING_BASE_URL}/v1/status/poll")
+DOCLING_RESULT_URL = os.environ.get("DOCLING_RESULT_URL", f"{DOCLING_BASE_URL}/v1/result")
 DOCLING_TIMEOUT = 120
 DOCLING_API_KEY = os.environ.get("DOCLING_API_KEY")
 
 # --- Ministral ---
-MINISTRAL_URL = os.environ.get("MINISTRAL_URL", "http://localhost:11434/api")
+MINISTRAL_BASE_URL = os.environ.get("MINISTRAL_BASE_URL", "http://localhost:11434").rstrip("/")
+MINISTRAL_URL = os.environ.get("MINISTRAL_URL", f"{MINISTRAL_BASE_URL}/api")
 MINISTRAL_API_KEY = os.environ.get("MINISTRAL_API_KEY")
 MINISTRAL_MODEL = os.environ.get("MINISTRAL_MODEL", "ministral-3:3b")
 MINISTRAL_TEMPERATURE = 0.1

@@ -1,11 +1,16 @@
 FROM ollama/ollama:latest
 
-# Запуск сервера Ollama в фоне, ожидание готовности и pull модели
-RUN nohup ollama serve > /tmp/ollama.log 2>&1 & \
+# Подгружаем модель во время сборки и сохраняем её копию для инициализации тома.
+RUN mkdir -p /preloaded/.ollama && \
+    nohup ollama serve > /tmp/ollama.log 2>&1 & \
     sleep 15 && \
     ollama pull ministral-3:3b && \
-    pkill ollama
+    pkill ollama && \
+    cp -a /root/.ollama/. /preloaded/.ollama/
 
+COPY deploy/ollama-entrypoint.sh /ollama-entrypoint.sh
+RUN chmod +x /ollama-entrypoint.sh
+
+VOLUME ["/root/.ollama"]
 EXPOSE 11434
-
-CMD ["serve"]
+ENTRYPOINT ["/ollama-entrypoint.sh"]

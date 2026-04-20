@@ -11,10 +11,7 @@ from bs4 import BeautifulSoup
 import concurrent.futures
 from typing import Callable, Iterable, List, Dict
 
-DOCLING_URL_ASYNC = "http://localhost:5001/v1/convert/file/async"
-DOCLING_STATUS_URL = "http://localhost:5001/v1/status/poll"
-DOCLING_RESULT_URL = "http://localhost:5001/v1/result"
-DOCLING_SYNC_URL = "http://localhost:5001/v1/convert/file"
+from core.config import DOCLING_BASE_URL
 
 
 def convert_docx_to_html(docx_path: str) -> str:
@@ -191,7 +188,7 @@ def convert_doc_to_docx(doc_path: str) -> str:
 
 
 def process_with_docling(file_path: Path, from_format: str, docling_base_url: str = None, cancel_checker=None) -> str:
-    _base = (docling_base_url or "http://localhost:5001").rstrip("/")
+    _base = (docling_base_url or DOCLING_BASE_URL).rstrip("/")
     _async_url = f"{_base}/v1/convert/file/async"
     _status_url = f"{_base}/v1/status/poll"
     _result_url = f"{_base}/v1/result"
@@ -386,7 +383,14 @@ def extract_text_from_file(filepath: str, docling_base_url: str = None, cancel_c
                 logger.info(f"[PDF] Временный файл сохранён: {fixed_path}")
             except Exception:
                 pass
-        return process_with_docling(fixed_path, 'pdf', docling_base_url, cancel_checker)
+        start = time.time()
+        result = process_with_docling(fixed_path, 'pdf', docling_base_url, cancel_checker)
+        elapsed = time.time() - start
+        try:
+            logger.info(f"🧾 Docling: конвертация PDF {file_path.name} завершена за {elapsed:.2f} сек")
+        except Exception:
+            pass
+        return result
     
     from_format = {
         '.pptx': 'pptx',
@@ -405,8 +409,15 @@ def extract_text_from_file(filepath: str, docling_base_url: str = None, cancel_c
         try:
             if callable(cancel_checker) and cancel_checker():
                 return "[Отменено пользователем]"
-            _sync_url = f"{(docling_base_url or 'http://localhost:5001').rstrip('/')}/v1/convert/file"
+            _sync_url = f"{(docling_base_url or DOCLING_BASE_URL).rstrip('/')}/v1/convert/file"
+            start = time.time()
             response = requests.post(_sync_url, files=files, data=data, timeout=120)
+            elapsed = time.time() - start
+            logger = logging.getLogger("tender")
+            try:
+                logger.info(f"🧾 Docling: синхронная конвертация {file_path.name} ({from_format}) завершена за {elapsed:.2f} сек")
+            except Exception:
+                pass
             if response.status_code == 200:
                 result = response.json()
                 html_content = result.get('document', {}).get('html_content', '')

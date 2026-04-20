@@ -98,9 +98,10 @@ services:
     environment:
       - WEBUI_HOST=0.0.0.0
       - WEBUI_PORT=8000
-      - MINISTRAL_URL=http://ollama:11434/api
+      - MINISTRAL_BASE_URL=http://ollama:11434
       - MINISTRAL_MODEL=ministral-3:3b
-      - DOCLING_URL=http://docling-serve:5001/v1/convert/file
+      - DOCLING_BASE_URL=http://docling-serve:5001
+      - TZ=Asia/Irkutsk
     volumes:
       - webui_data:/app/data
       - webui_logs:/app/logs
