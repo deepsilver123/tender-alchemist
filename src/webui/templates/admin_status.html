@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Статус загрузки прайс-листа</title>
+    <style>
+        body { margin: 0; min-height: 100vh; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef2ff; color: #0f172a; }
+        .page { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem; }
+        .topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; }
+        .topbar h1 { margin: 0; font-size: clamp(1.8rem, 2.5vw, 2.4rem); }
+        .topbar .small { color: #475569; }
+        .card { background: #ffffff; border-radius: 24px; box-shadow: 0 22px 60px rgba(15,23,42,0.08); padding: 1.75rem; margin-bottom: 1.5rem; }
+        .status-row { display: grid; grid-template-columns: minmax(200px, auto) 1fr; gap: 1rem; align-items: center; }
+        .status-pill { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; border-radius: 999px; font-weight: 700; text-transform: uppercase; font-size: 0.85rem; letter-spacing: .04em; }
+        .status-created { background: #e2e8f0; color: #334155; }
+        .status-running { background: #fef3c7; color: #92400e; }
+        .status-cancelling { background: #fef9c3; color: #854d0e; }
+        .status-done { background: #dcfce7; color: #166534; }
+        .status-failed { background: #fee2e7; color: #991b1b; }
+        .info-list { display: grid; gap: 0.85rem; margin-top: 1rem; }
+        .info-item { display: flex; justify-content: space-between; gap: 0.8rem; color: #475569; }
+        .info-item span:first-child { font-weight: 600; }
+        .progress-container { margin-top: 1.4rem; }
+        .progress-label { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.65rem; color: #334155; font-size: 0.95rem; }
+        .progress-track { height: 18px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+        .progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #2563eb, #4338ca); transition: width .3s ease; }
+        .status-line {
+            margin-bottom: 1rem;
+            padding: 1rem 1.15rem;
+            border-radius: 16px;
+            background: #eef2ff;
+            color: #1e293b;
+            font-weight: 600;
+            letter-spacing: .01em;
+        }
+        .error-banner {
+            display: none;
+            border-radius: 16px;
+            padding: 1rem 1.15rem;
+            margin-top: 1rem;
+            background: #fee2e7;
+            border: 1px solid #fecdd3;
+            color: #991b1b;
+            font-weight: 600;
+        }
+        .controls { display: flex; flex-wrap: wrap; gap: 0.85rem; margin-top: 1.25rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.95rem 1.35rem; border-radius: 999px; font-weight: 700; border: none; text-decoration: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+        .btn.primary { background: #2563eb; color: #ffffff; }
+        .btn.secondary { background: #f8fafc; color: #334155; }
+        .btn.danger { background: #dc2626; color: #ffffff; }
+        .btn:hover { transform: translateY(-1px); }
+        .alert { border-radius: 14px; padding: 1rem 1.15rem; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <div>
+                <h1>Статус индексирования</h1>
+                <div class="small">Задача ID: {{ task_id }}</div>
+            </div>
+            <div class="status-pill status-{{ status }}">{{ status }}</div>
+        </div>
+
+        <div class="card">
+            <div class="status-row">
+                <div>
+                    <div class="info-list">
+                        <div class="info-item"><span>Файл</span><span>{{ filename }}</span></div>
+                        <div class="info-item"><span>Текущее состояние</span><span id="statusText">{{ status }}</span></div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <a href="/admin" class="btn secondary">← В админку</a>
+                    <a href="/" class="btn secondary">На главную</a>
+                    <button id="cancelButton" class="btn danger" type="button">Отмена</button>
+                </div>
+            </div>
+
+            <div class="status-line" id="statusLine">Статус: {{ status }} — {{ progress_current }} / {{ progress_total }} ({{ 0 if progress_total == 0 else (progress_current * 100 // progress_total) }}%)</div>
+            <div class="progress-container">
+                <div class="progress-label"><span>Прогресс</span><span id="progressLabel">{{ progress_current }} / {{ progress_total }}</span></div>
+                <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+            </div>
+        </div>
+
+        <div class="alert">Обработка выполняется в фоне. Страница автоматически обновляет текущий статус.</div>
+        <div id="errorBanner" class="error-banner" {% if error %}style="display:block"{% endif %}>{% if error %}{{ error }}{% endif %}</div>
+    </div>
+
+    <script>
+        var taskId = '{{ task_id }}';
+        var status = '{{ status }}';
+        var statusText = document.getElementById('statusText');
+        var statusLine = document.getElementById('statusLine');
+        var errorBanner = document.getElementById('errorBanner');
+        var progressBar = document.getElementById('progressBar');
+        var progressLabel = document.getElementById('progressLabel');
+        var proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+        var ws = new WebSocket(proto + '://' + location.host + '/ws/' + taskId);
+
+        function showError(message) {
+            if (!errorBanner) return;
+            if (!message) {
+                errorBanner.style.display = 'none';
+                errorBanner.textContent = '';
+                return;
+            }
+            errorBanner.style.display = 'block';
+            errorBanner.textContent = message;
+        }
+
+        function setStatus(value) {
+            var pill = document.querySelector('.status-pill');
+            if (pill) {
+                pill.textContent = value;
+                pill.className = 'status-pill status-' + value;
+            }
+            if (statusText) statusText.textContent = value;
+        }
+
+        function setProgress(current, total) {
+            var pct = total > 0 ? Math.min(100, Math.round(current / total * 100)) : 0;
+            if (progressBar) progressBar.style.width = pct + '%';
+            if (progressLabel) progressLabel.textContent = current + ' / ' + total;
+            if (statusLine) {
+                statusLine.textContent = 'Выполнено: ' + current + ' / ' + total + ' (' + pct + '%)';
+            }
+        }
+
+        var cancelButton = document.getElementById('cancelButton');
+        function updateCancelButton(statusValue) {
+            if (!cancelButton) return;
+            cancelButton.disabled = !(statusValue === 'running' || statusValue === 'created' || statusValue === 'cancelling');
+            cancelButton.textContent = statusValue === 'cancelling' ? 'Отмена запрошена...' : 'Отмена';
+        }
+
+        if (status !== 'done' && status !== 'failed' && status !== 'cancelled') {
+            updateCancelButton(status);
+        } else {
+            if (cancelButton) cancelButton.disabled = true;
+        }
+
+        if (cancelButton) {
+            cancelButton.addEventListener('click', function() {
+                if (!confirm('Отменить обработку? Никакие изменения в базе сохраняться не будут.')) {
+                    return;
+                }
+                cancelButton.disabled = true;
+                cancelButton.textContent = 'Отмена...';
+                fetch('/admin/cancel/' + taskId, { method: 'POST' })
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.status === 'ok') {
+                            updateCancelButton('cancelling');
+                        }
+                    })
+                    .catch(function() {
+                        showError('Ошибка при запросе отмены');
+                        if (cancelButton) cancelButton.disabled = false;
+                    });
+            });
+        }
+
+        ws.onmessage = function(event) {
+            try {
+                var msg = JSON.parse(event.data);
+                if (msg.type === 'status' && msg.status) {
+                    setStatus(msg.status);
+                    updateCancelButton(msg.status);
+                    if (msg.error) {
+                        showError(msg.error);
+                    } else {
+                        showError('');
+                    }
+                }
+                if (msg.type === 'progress') {
+                    setProgress(msg.current || 0, msg.total || 0);
+                }
+            } catch (e) {
+                showError('Ошибка WebSocket: ' + e);
+            }
+        };
+
+        ws.onclose = function() {
+            if (status === 'running' || status === 'created') {
+                setTimeout(function() { location.reload(); }, 5000);
+            }
+        };
+    </script>
+</body>
+</html>

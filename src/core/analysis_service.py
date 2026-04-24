@@ -1,16 +1,14 @@
 import asyncio
 import json
-import os
 import sys
-import logging
 from pathlib import Path
 
 from .json_utils import extract_json_from_text
-from .ministral_client import call_model
+from .llm_client import call_model
 from .config import LOG_DIR
 
 
-async def analyze_files(task_id: str, files: list, send_log, ministral_url: str | None = None, ministral_model: str | None = None, docling_base: str | None = None):
+async def analyze_files(task_id: str, files: list, send_log, llm_url: str | None = None, llm_model: str | None = None, docling_base: str | None = None):
     """Process uploaded files and produce JSON result.
 
     Args:
@@ -23,7 +21,7 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
     await _maybe_await(send_log(f"Начинаю обработку {len(files)} файлов"))
 
     # Install temporary logging handler to forward messages from lower-level
-    # modules (file_reader, docx_parser, ministral_client) into send_log.
+    # modules (document_parser, docx_parser, llm_client) into send_log.
     import logging
     try:
         loop = asyncio.get_running_loop()
@@ -84,7 +82,7 @@ async def analyze_files(task_id: str, files: list, send_log, ministral_url: str 
             ext = Path(file_path).suffix.lower()
             if ext in ('.docx', '.doc'):
                 try:
-                    from .file_reader import extract_text_from_file
+                    from .document_parser import extract_text_from_file
                     text = extract_text_from_file(file_path)
                 except Exception as e:
                     logging.getLogger("tender").exception("Ошибка парсинга DOC/DOCX %s: %s", file_path, e)

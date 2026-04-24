@@ -11,18 +11,32 @@ DOCLING_RESULT_URL = os.environ.get("DOCLING_RESULT_URL", f"{DOCLING_BASE_URL}/v
 DOCLING_TIMEOUT = 120
 DOCLING_API_KEY = os.environ.get("DOCLING_API_KEY")
 
-# --- Ministral ---
-MINISTRAL_BASE_URL = os.environ.get("MINISTRAL_BASE_URL", "http://localhost:11434").rstrip("/")
-MINISTRAL_URL = os.environ.get("MINISTRAL_URL", f"{MINISTRAL_BASE_URL}/api")
-MINISTRAL_API_KEY = os.environ.get("MINISTRAL_API_KEY")
-MINISTRAL_MODEL = os.environ.get("MINISTRAL_MODEL", "ministral-3:3b")
-MINISTRAL_TEMPERATURE = 0.1
-MINISTRAL_MAX_TOKENS = 4000
-MINISTRAL_NUM_CTX = 32384   # целимся в устойчивую работу на слабой GPU
-MINISTRAL_NUM_PREDICT = 8192
+# --- LLM service ---
+# This is a generic external LLM endpoint. It can be any Ollama-compatible HTTP API,
+# not necessarily Ministral.
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:11434").rstrip("/")
+LLM_URL = os.environ.get("LLM_URL", f"{LLM_BASE_URL}/api")
+LLM_API_KEY = os.environ.get("LLM_API_KEY")
+LLM_MODEL = os.environ.get("LLM_MODEL", "ministral-3:3b")
+# Модель для генерации поисковых запросов — лёгкая и быстрая
+LLM_QUERY_MODEL = os.environ.get("LLM_QUERY_MODEL", "qwen2.5:1.5b")
+LLM_TEMPERATURE = 0.1
+LLM_MAX_TOKENS = 4000
+LLM_NUM_CTX = 32384   # целимся в устойчивую работу на слабой GPU
+LLM_NUM_PREDICT = 8192
 
-# --- Промпт для анализа небольших документов (без чанкования) ---
-MINISTRAL_PROMPT = """Ты — эксперт по закупкам. Проанализируй документ и верни JSON по схеме.
+# --- Embedding service ---
+# Separate embedding service endpoint for vectorization.
+# By default, use the same host as the main LLM service when an embedding-specific URL is not configured.
+EMBEDDING_BASE_URL = os.environ.get("EMBEDDING_BASE_URL", LLM_BASE_URL).rstrip("/")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "bge-m3")
+
+# Backwards compatibility aliases for older embedding config names.
+OLLAMA_URL = EMBEDDING_BASE_URL
+OLLAMA_EMBED_MODEL = EMBEDDING_MODEL
+
+# --- Prompt for converting tender documentation into JSON specification ---
+TENDER_DOCUMENT_JSON_PROMPT = """Ты — эксперт по закупкам. Проанализируй документ и верни JSON по схеме.
 
 Документ содержит HTML-разметку, но основная информация — в тексте и таблицах.
 Найди все товары. Обычно товары перечислены в строках таблиц, где есть название, цена, количество.
@@ -39,9 +53,8 @@ MINISTRAL_PROMPT = """Ты — эксперт по закупкам. Проан�
   "products": [
     {
       "product_name": "название товара",
-      "brand_reference": {"brand": "", "allow_equivalent": true},
       "technical_requirements": {"характеристика": "значение"},
-      "commercial_terms": {"quantity": число, "unit": "шт", "price_per_unit": число, "currency": "RUB", "total_amount": число}
+      "commercial_terms": {"quantity": число, "price_per_unit": число, "total_amount": число}
     }
   ]
 }
@@ -62,43 +75,46 @@ SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8080").rstrip("/")
 SEARXNG_TIMEOUT = 10
 SEARCH_MAX_RESULTS = int(os.environ.get("SEARCH_MAX_RESULTS", "15"))
 
-# Модель для генерации поисковых запросов (лёгкая — qwen2.5:1.5b)
-SEARCH_MODEL = os.environ.get("SEARCH_MODEL", "qwen2.5:1.5b")
+# --- Qdrant ---
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333").rstrip("/")
+
+# Модель для генерации поисковых запросов (лёгкая — для быстрого NER)
+SEARCH_MODEL = os.environ.get("SEARCH_MODEL", "qwen2.5:1b")
 SEARCH_NUM_CTX = 4096
 SEARCH_NUM_PREDICT = 512
 
 # --- Промпт: генерация поисковых запросов из JSON-продукта ---
-SEARCH_PROMPT = """Ты — специалист по IT-закупкам. Из JSON с техническими требованиями сформируй 2-3 поисковых запроса для поиска конкретных моделей оборудования в российских интернет-магазинах.
+SEARCH_PROMPT = """Ты — поисковый ассистент для российских интернет-магазинов IT-техники.
 
-Правила:
-- Используй только ключевые характеристики (5-7 штук, самые важные)
-- Заменяй символы ≥ и ≤ просто числами
-- Используй русский язык
-- Добавь слово «купить» или «цена» в один из запросов
-- Не упоминай «тендер» или «ТЗ»
+ЗАДАЧА: Из описания товара извлеки тип товара и его СОБСТВЕННЫЕ характеристики для поиска в интернете.
+Тебе нужно сформировать поисковой запрос, чтобы найти похожий товар в интернете с использованием таких поисковиков как Google, Yandex и т.д.
 
-Верни ТОЛЬКО JSON-массив строк без пояснений.
-Пример: ["ноутбук 17 дюймов IPS 144Hz DDR5 16GB SSD 500GB купить", "ноутбук 17 Full HD дискретная видеокарта 4GB GDDR6 цена"]
+Твой продукт:
+{product_json}
 
-JSON продукта:
-{product_json}"""
+Верни ТОЛЬКО JSON без пояснений:
+{"category": "...", "search_terms": []}"""
 
 # --- Промпт: сопоставление результатов поиска с требованиями ---
-MATCH_PROMPT = """Ты — ведущий аудитор отдела закупок. Проверь результаты поиска и найди модели, соответствующие техническим требованиям тендера.
+MATCH_PROMPT = """Ты — суровый технический аудитор. Твоя задача: выявить в куче поискового мусора реальные модели, подходящие под ТЗ, и написать супер-краткий вердикт.
 
-АЛГОРИТМ:
-1. НУЛЕВАЯ ТОЛЕРАНТНОСТЬ: если модель не соответствует хотя бы одному требованию из technical_requirements — она ЗАПРЕЩЕНА
-2. БЮДЖЕТ: цена модели должна быть ≤ price_per_unit ({price_per_unit} руб.). Если все модели дороже — верни пустой массив []
-3. БЕЗ ВЫДУМОК: если характеристика модели не подтверждена в результатах поиска — считай, что она не соответствует
+ПРАВИЛА:
+1. ИЩИ КОНКРЕТИКУ: Добавляй результат ТОЛЬКО если найдена конкретная модель товара (например «Блок питания Chieftec 600W»). Каталоги, справочники и мусор — пропускай.
+2. ФИЛЬТРАЦИЯ: Базовые характеристики (форм-фактор, мощность, диагональ, процессоры) должны в целом подходить под ТЗ.
+3. ПОЛЕ NOTES: Никаких длинных предложений! Делай короткую выжимку (булетами через разделитель). Обязательно используй эмодзи ✅ (найдено/совпадает) и ❌ (отсутствует/не совпадает).
+   ПРИМЕР ХОРОШЕГО NOTES: "✅ Лазерная печать | ✅ 40 стр/мин | ❌ Нет Wi-Fi | ❌ Цветной (нужен ч/б)"
+   ПРИМЕР ПЛОХОГО NOTES: "Принтер лазерный, формат А4, печатает со скоростью 40 страниц в минуту, но у него нет вайфая..."
+4. ВЕРНИ: До 5 лучших кандидатов (если ничего не подходит под главные характеристики — верни пустой массив []).
 
-Технические требования:
+Технические требования (ТЗ):
 {technical_requirements}
 
 Результаты поиска:
 {search_results}
 
-Верни ТОЛЬКО JSON-массив объектов без пояснений и текста до/после.
-Схема объекта: {{"model": "Бренд Модель", "price": число_или_null, "url": "ссылка", "notes": "краткое пояснение"}}"""
+Верни СТРОГО JSON-массив объектов. Схема объекта: 
+{{"model": "Точное Имя Модели", "url": "ссылка", "notes": "✅ ... | ❌ ..."}}
+Никаких комментариев до или после массива."""
 
 # --- Project folders ---
 # `DATA_DIR` and `LOG_DIR` point to project-level folders (one level above `src/`)

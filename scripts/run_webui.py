@@ -19,6 +19,14 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+try:
+    import qdrant_client
+except ImportError as exc:
+    print("ERROR: qdrant_client не найден. Проверьте, что вы запускаете проект из виртуального окружения .venv.")
+    print("Запустите так:")
+    print(f'  {ROOT_DIR / ".venv" / "Scripts" / "python.exe"} scripts/run_webui.py')
+    raise
+
 from webui.app_impl import app
 import os
 

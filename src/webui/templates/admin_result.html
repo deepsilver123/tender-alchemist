@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Результат загрузки прайс-листа</title>
+    <style>
+        body { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f7fb; color: #20232a; margin: 0; padding: 0; }
+        .page { max-width: 780px; margin: 2.5rem auto; padding: 1.5rem; }
+        .card { background: #ffffff; border-radius: 20px; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06); padding: 2rem; }
+        .badge { display: inline-flex; align-items: center; justify-content: center; padding: 0.55rem 0.9rem; border-radius: 999px; font-size: 0.9rem; font-weight: 700; letter-spacing: .02em; margin-bottom: 1rem; }
+        .badge.success { background: #e6ffed; color: #0f7a32; }
+        .badge.error { background: #ffebee; color: #b12f36; }
+        h1 { font-size: 1.9rem; margin: 0 0 0.75rem; }
+        p { line-height: 1.75; margin: 0.85rem 0; }
+        .button-group { margin-top: 1.75rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.95rem 1.35rem; border-radius: 999px; font-weight: 700; text-decoration: none; border: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+        .btn.primary { background: #2563eb; color: #ffffff; box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18); }
+        .btn.secondary { background: #f8fafc; color: #0f172a; }
+        .btn.primary:hover { transform: translateY(-1px); }
+        .back-link { display: inline-flex; align-items: center; gap: 0.55rem; color: #334155; text-decoration: none; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <a href="/admin" class="back-link">← Вернуться в админ-панель</a>
+        <div class="card">
+            <div class="badge {{ badge_class }}">{{ title }}</div>
+            <h1>{{ heading }}</h1>
+            <p>{{ message }}</p>
+            <div class="button-group">
+                <a href="/admin" class="btn primary">Открыть админку</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

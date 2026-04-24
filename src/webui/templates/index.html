@@ -125,15 +125,21 @@
     .friendly-output { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; }
     .friendly-product-card { margin-bottom: 22px; }
     .friendly-product-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: #0f172a; }
-    .friendly-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    .friendly-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; color: #000; }
     .friendly-table th,
-    .friendly-table td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; }
-    .friendly-table th { background: #eef2ff; font-weight: 700; color: #0f172a; }
+    .friendly-table td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; color: #000; }
+    .friendly-table th { background: #eef2ff; font-weight: 700; color: #000; }
     .friendly-section-title { font-size: 15px; font-weight: 700; margin: 18px 0 10px; color: #1e293b; }
     .friendly-empty { color: #475569; font-size: 15px; }
     .friendly-select-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
     .friendly-select-row label { font-size: 14px; color: #334155; }
     .friendly-product-select { width: 100%; max-width: 320px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; font-size: 15px; }
+
+    /* ─── Search results ─── */
+    .search-product-section { margin-bottom: 24px; }
+    .search-product-section:last-child { margin-bottom: 0; }
+    .search-product-name { font-size: 15px; font-weight: 700; color: #0f172a; padding: 10px 0 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 10px; }
+    .search-no-results { font-size: 14px; color: #94a3b8; padding: 6px 0; }
 
     .collapsible-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
     .collapsible-panel[open] { box-shadow: 0 2px 12px rgba(15, 23, 42, .08); }
@@ -264,13 +270,16 @@
           <input id="taskTitleInput" class="task-title-input" type="text" value="{{ task_title|default('') }}" placeholder="Без названия" />
           <div class="task-header-actions">
             <button type="button" id="renameTaskBtn" class="ghost-btn">Сохранить название</button>
-            <button type="button" id="deleteTaskBtn" class="ghost-btn task-delete-btn">Удалить задачу</button>
+            <button type="button" id="repeatTaskBtn" class="ghost-btn">Повторить</button>
           </div>
         </div>
-
         <div class="task-actions">
           <a href="/" class="ghost-btn">＋ Новая задача</a>
         </div>
+      </div>
+
+      <div class="card" style="background-color: #fffbeb; border-left: 4px solid #f59e0b; color: #92400e; padding: 16px 24px; font-size: 15px; border-radius: 8px; margin-bottom: 18px;">
+        <strong>Внимание!</strong> Локальный поиск по прайс-листу носит рекомендательный характер. Даже если ИИ пометил кандидат как подходящий, <strong>нужна ручная проверка</strong> по всем пунктам ТЗ.
       </div>
 
       <div class="card">
@@ -294,6 +303,7 @@
           </div>
         </details>
       </div>
+      {% if initial_search_results %}<script id="initialSearchResultsData" type="application/json">{{ initial_search_results }}</script>{% endif %}
 
       <div class="card" id="friendlyResultCard" style="display:{% if initial_json %}block{% else %}none{% endif %};">
         <details id="friendlyDetails" class="collapsible-panel" open>
@@ -307,12 +317,11 @@
           </div>
         </details>
       </div>
-
-      <div class="card" id="rawCard" style="display:{% if raw_available %}block{% else %}none{% endif %};">
-        <details id="rawDetails" class="collapsible-panel" open>
-          <summary>🔍 Сырой ответ модели</summary>
+      <div class="card" id="searchResultsCard" style="display:{% if initial_search_results %}block{% else %}none{% endif %};">
+        <details id="searchDetails" class="collapsible-panel" open>
+          <summary>📦 Сводка поиска по прайс-листу</summary>
           <div class="collapse-body">
-            <pre id="rawPreview" class="log-panel" style="margin-top:0; min-height:60px; white-space:pre-wrap;"></pre>
+            <div id="searchResultsOutput"></div>
           </div>
         </details>
       </div>
@@ -344,12 +353,12 @@
           </div>
           <div class="adv-body" id="advBody">
             <div class="field">
-              <label>Ministral URL</label>
-              <input type="url" name="ministral_url" class="input-text" placeholder="http://localhost:11434/api" />
+              <label>LLM URL</label>
+              <input type="url" name="llm_url" class="input-text" placeholder="http://localhost:11434/api" />
             </div>
             <div class="field">
-              <label>Ministral model</label>
-              <input type="text" name="ministral_model" class="input-text" placeholder="ministral-3:3b" />
+              <label>LLM model</label>
+              <input type="text" name="llm_model" class="input-text" placeholder="ministral-3:3b" />
             </div>
             <div class="field">
               <label>Docling URL</label>
@@ -358,6 +367,39 @@
           </div>
 
           <button type="submit" class="submit-btn" id="submitBtn">🚀 Запустить анализ</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <form method="post" action="/search_json" enctype="multipart/form-data" id="jsonSearchForm">
+          <div class="page-head">
+            <h2>Поиск по готовому JSON</h2>
+            <p>Вставьте результат из модели или загрузите файл JSON с полем products.</p>
+          </div>
+
+          <div class="field">
+            <label>JSON вручную</label>
+            <textarea name="manual_json" id="manualJsonInput" class="input-text" rows="10" placeholder='{"products": [{"product_name": "Блок питания 1", ...}]}'></textarea>
+          </div>
+
+          <div class="field">
+            <label>Или загрузите JSON-файл</label>
+            <input type="file" name="json_file" accept="application/json" id="jsonFileInput" />
+            <div id="jsonFilePreview" class="file-preview-list"></div>
+          </div>
+
+          <div class="adv-body open">
+            <div class="field">
+              <label>LLM URL</label>
+              <input type="url" name="llm_url" class="input-text" placeholder="http://localhost:11434/api" />
+            </div>
+            <div class="field">
+              <label>LLM model</label>
+              <input type="text" name="llm_model" class="input-text" placeholder="ministral-3:3b" />
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn" id="searchJsonBtn">🔎 Поиск по JSON</button>
         </form>
       </div>
 
@@ -422,6 +464,65 @@
     });
   }
 
+  var jsonSearchForm = document.getElementById('jsonSearchForm');
+  var jsonSearchBtn = document.getElementById('searchJsonBtn');
+  var jsonFileInput = document.getElementById('jsonFileInput');
+  var jsonFilePreview = document.getElementById('jsonFilePreview');
+
+  function renderJsonFilePreview(files) {
+    if (!jsonFilePreview) return;
+    jsonFilePreview.innerHTML = '';
+    Array.from(files || []).forEach(function (f) {
+      var c = document.createElement('div');
+      c.className = 'fpc';
+      c.textContent = '📄 ' + f.name;
+      jsonFilePreview.appendChild(c);
+    });
+  }
+
+  if (jsonFileInput) {
+    jsonFileInput.addEventListener('change', function () { renderJsonFilePreview(jsonFileInput.files); });
+  }
+
+  if (jsonSearchForm && jsonSearchBtn) {
+    jsonSearchForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!jsonSearchBtn) return;
+      var manualJson = document.getElementById('manualJsonInput');
+      if (jsonFileInput && jsonFileInput.files.length === 0 && (!manualJson || !manualJson.value.trim())) {
+        alert('Пожалуйста, введите JSON вручную или загрузите файл.');
+        return;
+      }
+      jsonSearchBtn.disabled = true;
+      jsonSearchBtn.textContent = '⏳ Поиск…';
+
+      var formData = new FormData(jsonSearchForm);
+      fetch('/search_json', {
+        method: 'POST',
+        body: formData,
+      })
+        .then(function (response) {
+          return response.json().then(function (data) {
+            return { status: response.status, data: data };
+          });
+        })
+        .then(function (result) {
+          if (result.status === 200 && result.data && result.data.task_id) {
+            window.location.href = '/?task_id=' + result.data.task_id;
+          } else {
+            alert(result.data && result.data.error ? result.data.error : 'Не удалось выполнить поиск по JSON');
+          }
+        })
+        .catch(function () {
+          alert('Ошибка при отправке JSON. Попробуйте ещё раз.');
+        })
+        .finally(function () {
+          jsonSearchBtn.disabled = false;
+          jsonSearchBtn.textContent = '🔎 Поиск по JSON';
+        });
+    });
+  }
+
   // ─── Task view ────────────────────────────────────────────────────────────
   var taskId = "{{ task_id|default('') }}";
   document.addEventListener('click', function (event) {
@@ -454,12 +555,10 @@
   var friendlyResultCard = document.getElementById('friendlyResultCard');
   var friendlySelectRow = document.getElementById('friendlySelectRow');
   var friendlyProductSelect = document.getElementById('friendlyProductSelect');
-  var rawCard     = document.getElementById('rawCard');
-  var rawDetails  = document.getElementById('rawDetails');
-  var rawPreview  = document.getElementById('rawPreview');
   var copyBtn     = document.getElementById('copyBtn');
-  var rawFetched  = false;
   var friendlyJsonData = null;
+  var searchResultsCard = document.getElementById('searchResultsCard');
+  var searchResultsOutput = document.getElementById('searchResultsOutput');
 
   function clearLogEmpty() {
     if (logs) logs.querySelectorAll('.log-empty').forEach(function (e) { e.remove(); });
@@ -483,13 +582,12 @@
   }
 
   // highlight any SSR-rendered JSON
-  if (codeEl && codeEl.textContent && codeEl.textContent.trim() && window.hljs) {
-    hljs.highlightElement(codeEl);
-  }
-  if (codeEl && codeEl.textContent && codeEl.textContent.trim()) {
-    renderFriendlyJson(codeEl.textContent, 0);
-    if (friendlyResultCard) friendlyResultCard.style.display = 'block';
-  }
+    // We replace the single table with the product card approach
+    // We already have renderFriendlyJson being called
+    if (codeEl && codeEl.textContent && codeEl.textContent.trim()) {
+      renderFriendlyJson(codeEl.textContent, 0);
+      if (friendlyResultCard) friendlyResultCard.style.display = 'block';
+    }
 
   // copy button
   if (copyBtn) {
@@ -513,6 +611,7 @@
 
   var taskTitleInput = document.getElementById('taskTitleInput');
   var renameTaskBtn = document.getElementById('renameTaskBtn');
+  var repeatTaskBtn = document.getElementById('repeatTaskBtn');
   var deleteTaskBtn = document.getElementById('deleteTaskBtn');
 
   function updateSidebarTitle(newTitle) {
@@ -540,6 +639,28 @@
         }
       }).catch(function () {
         alert('Не удалось сохранить название задачи');
+      });
+    });
+  }
+
+  if (repeatTaskBtn) {
+    repeatTaskBtn.addEventListener('click', function () {
+      if (!confirm('Запустить повторно ту же задачу?')) {
+        return;
+      }
+      repeatTaskBtn.disabled = true;
+      repeatTaskBtn.textContent = '⏳ Повтор запускается…';
+      fetch('/task/' + taskId + '/repeat', { method: 'POST' }).then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) throw new Error(data.error || 'Ошибка при повторе');
+          return data;
+        });
+      }).then(function (data) {
+        window.location.href = '/?task_id=' + encodeURIComponent(data.task_id);
+      }).catch(function (err) {
+        alert('Не удалось повторить задачу: ' + err.message);
+        repeatTaskBtn.disabled = false;
+        repeatTaskBtn.textContent = 'Повторить';
       });
     });
   }
@@ -688,21 +809,149 @@
       out.appendChild(card);
     }
 
+    // Render only the selected product
     renderProduct(products[selectedIndex], selectedIndex);
   }
 
-  // lazy-load raw response
-  if (rawDetails) {
-    rawDetails.addEventListener('toggle', async function () {
-      if (rawDetails.open && !rawFetched && taskId) {
-        rawPreview.textContent = 'Загрузка…';
-        try {
-          var resp = await fetch('/raw/' + taskId);
-          rawPreview.textContent = resp.ok ? (await resp.text() || '(пусто)') : 'Ошибка: ' + resp.status;
-          rawFetched = true;
-        } catch (e) { rawPreview.textContent = 'Ошибка: ' + String(e); }
-      }
+  function extractCatalogUrl(rawLink) {
+    if (!rawLink) return '';
+    var text = String(rawLink).trim();
+    var hyperMatch = text.match(/HYPERLINK\("([^"]+)"/i);
+    if (hyperMatch) return hyperMatch[1];
+    if (/^https?:\/\//i.test(text)) return text;
+    return '';
+  }
+
+  function aiCommentForMatch(match) {
+    if (!match || typeof match !== 'object') return 'Нет комментария';
+    if (match.llm_reason) return match.llm_reason;
+    if (match.llm_validated) return 'ИИ считает кандидат подходящим';
+    return 'ИИ не подтвердила полное соответствие';
+  }
+
+  function renderSearchResults(data) {
+    if (!searchResultsOutput) return;
+    searchResultsOutput.innerHTML = '';
+
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      searchResultsOutput.innerHTML = '<div class="search-no-results">Нет результатов поиска по прайс-листу.</div>';
+      if (searchResultsCard) searchResultsCard.style.display = 'block';
+      return;
+    }
+
+    var productNames = Object.keys(data);
+    if (!productNames.length) {
+      searchResultsOutput.innerHTML = '<div class="search-no-results">Поиск по прайс-листу не вернул результатов.</div>';
+      if (searchResultsCard) searchResultsCard.style.display = 'block';
+      return;
+    }
+
+    // Группируем по базовому названию (убираем суффикс " N")
+    var groups = {};
+    productNames.forEach(function (name) {
+      var baseName = name.replace(/\s+\d+$/, '').trim();
+      if (!groups[baseName]) groups[baseName] = [];
+      groups[baseName].push(name);
     });
+    var groupNames = Object.keys(groups);
+
+    // Строим строку выбора типа товара
+    var selectRow = document.createElement('div');
+    selectRow.className = 'friendly-select-row';
+    var lbl = document.createElement('label');
+    lbl.textContent = 'Показать тип:';
+    selectRow.appendChild(lbl);
+    var srSelect = document.createElement('select');
+    srSelect.className = 'friendly-product-select';
+    groupNames.forEach(function (gName) {
+      var opt = document.createElement('option');
+      opt.value = gName;
+      opt.textContent = gName + ' (' + groups[gName].length + ' шт.)';
+      srSelect.appendChild(opt);
+    });
+    selectRow.appendChild(srSelect);
+    searchResultsOutput.appendChild(selectRow);
+
+    var tableContainer = document.createElement('div');
+    searchResultsOutput.appendChild(tableContainer);
+
+    function buildGroupTable(groupName) {
+      tableContainer.innerHTML = '';
+      var names = groups[groupName] || [];
+      var table = document.createElement('table');
+      table.className = 'friendly-table';
+      table.innerHTML = '<thead><tr><th>Товар</th><th>Топ</th><th>Результат</th><th>Цена</th><th>Ссылка</th><th>Комментарий ИИ</th></tr></thead>';
+      var tbody = document.createElement('tbody');
+
+      names.forEach(function (productName) {
+        var matches = Array.isArray(data[productName]) ? data[productName] : [];
+        if (!matches.length) {
+          var emptyRow = document.createElement('tr');
+          [productName, '-', 'Нет кандидатов', '-', '-', 'ИИ не получила кандидатов для оценки'].forEach(function (val) {
+            var td = document.createElement('td');
+            td.textContent = String(val);
+            emptyRow.appendChild(td);
+          });
+          tbody.appendChild(emptyRow);
+          return;
+        }
+        matches.forEach(function (m, i) {
+          var row = document.createElement('tr');
+
+          var productTd = document.createElement('td');
+          productTd.textContent = productName;
+          row.appendChild(productTd);
+
+          var rankTd = document.createElement('td');
+          rankTd.textContent = '#' + (i + 1);
+          row.appendChild(rankTd);
+
+          var titleTd = document.createElement('td');
+          titleTd.textContent = m.title || m.model || '-';
+          row.appendChild(titleTd);
+
+          var priceTd = document.createElement('td');
+          priceTd.textContent = m.price != null ? String(m.price) + ' руб.' : '-';
+          row.appendChild(priceTd);
+
+          var linkTd = document.createElement('td');
+          var resolvedUrl = extractCatalogUrl(m.link || m.url || '');
+          if (resolvedUrl) {
+            var a = document.createElement('a');
+            a.href = resolvedUrl;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.textContent = 'Открыть';
+            linkTd.appendChild(a);
+          } else {
+            linkTd.textContent = '-';
+          }
+          row.appendChild(linkTd);
+
+          var commentTd = document.createElement('td');
+          commentTd.textContent = aiCommentForMatch(m);
+          row.appendChild(commentTd);
+
+          tbody.appendChild(row);
+        });
+      });
+
+      table.appendChild(tbody);
+      tableContainer.appendChild(table);
+    }
+
+    srSelect.addEventListener('change', function () { buildGroupTable(this.value); });
+    buildGroupTable(groupNames[0]);
+
+    if (searchResultsCard) searchResultsCard.style.display = 'block';
+  }
+
+  // SSR: render search results if already available
+  var initialSearchResultsEl = document.getElementById('initialSearchResultsData');
+  if (initialSearchResultsEl && initialSearchResultsEl.textContent.trim()) {
+    try {
+      renderSearchResults(JSON.parse(initialSearchResultsEl.textContent));
+    } catch (e) {}
   }
 
   // WebSocket
@@ -741,7 +990,13 @@
           if (window.hljs) hljs.highlightElement(codeEl);
           if (resultCard) resultCard.style.display = 'block';
           if (friendlyResultCard) friendlyResultCard.style.display = 'block';
-          if (rawCard) rawCard.style.display = 'block';
+        }
+
+        if (msg.type === 'search_results' && msg.json) {
+          try {
+            var srData = (typeof msg.json === 'string') ? JSON.parse(msg.json) : msg.json;
+            renderSearchResults(srData);
+          } catch (e) {}
         }
       } catch (e) {
         appendLog(String(ev.data));

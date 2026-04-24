@@ -178,9 +178,6 @@
             </div>
             <div class="task-row-actions" onclick="event.stopPropagation()">
               <a href="/?task_id={{ t.id }}" class="btn-sm btn-view">👁 Открыть</a>
-              {% if t.raw_available %}
-              <a href="/raw/{{ t.id }}" target="_blank" class="btn-sm btn-raw">🔍 Сырой</a>
-              {% endif %}
             </div>
           </div>
           <div class="task-row-body" id="body-{{ t.id }}">

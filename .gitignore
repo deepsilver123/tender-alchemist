@@ -12,7 +12,6 @@
 !/docker-compose.yml
 !/.dockerignore
 !/.env.example
-!/run_webui.py
 !/searxng/
 !/searxng/**
 
@@ -41,12 +40,18 @@ Thumbs.db
 
 # Local artifacts (ignore large generated files & secrets)
 data/uploads/
+data/downloads/
+data/e2e4/
+data/e2e4_extracted/
+data/enriched/
+data/qdrant_db/
+data/raw_catalogs/
+data/state.json
+data/batch_report.json
+# Duplicate hash-prefixed catalogs
+data/catalogs/*_e2e4_flat.csv
 results/
-logs/
-.venv/
-venv/
-.env
-!searxng/.env
-*.log
 .pytest_cache/
 .mypy_cache/
+html-samples/
+show_qdrant_samples.py

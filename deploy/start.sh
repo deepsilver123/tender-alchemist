@@ -68,12 +68,18 @@ while ! docker inspect --format='{{.State.Health.Status}}' ta-ollama 2>/dev/null
     fi
 done
 
-# ── Pull Ministral model if requested ────────────────────────────────────────
+# ── Pull LLM model if requested ────────────────────────────────────────
 if [[ "${1:-}" == "--pull" ]]; then
-    MODEL="${MINISTRAL_MODEL:-ministral:3b}"
+    MODEL="${LLM_MODEL:-llm:3b}"
     info "Pulling model '${MODEL}' in Ollama..."
     docker exec ta-ollama ollama pull "$MODEL"
-    info "Model ready."
+
+    if [[ -n "${EMBEDDING_MODEL:-}" && "${EMBEDDING_MODEL}" != "${MODEL}" ]]; then
+        info "Pulling embedding model '${EMBEDDING_MODEL}' in Ollama..."
+        docker exec ta-ollama ollama pull "$EMBEDDING_MODEL"
+    fi
+
+    info "Models ready."
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────

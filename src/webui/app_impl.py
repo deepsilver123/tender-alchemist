@@ -27,14 +27,13 @@ MONTH_NAMES_RU = [
 def format_russian_datetime(dt: datetime) -> str:
     return f"{dt.day} {MONTH_NAMES_RU[dt.month - 1]} {dt.year}, {dt:%H:%M}"
 
-from fastapi import Body, FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import Body, FastAPI, File, Form, Request, UploadFile, WebSocket
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 import logging
-from core import analyze_files
 import requests
-from core.config import DATA_DIR, LOG_DIR, MINISTRAL_URL, DOCLING_BASE_URL
+from core.config import DATA_DIR, LOG_DIR, LLM_URL, DOCLING_BASE_URL
 import shutil
 
 
@@ -44,6 +43,7 @@ class TaskState:
     status: str = "created"
     logs: list[str] = field(default_factory=list)
     parsed: Any = None
+    search_results: Any = None
     result_path: str | None = None
     prompt_path: str | None = None
     raw_path: str | None = None
@@ -51,6 +51,12 @@ class TaskState:
     files: list[str] = field(default_factory=list)
     title: str = ""
     created_at: str = ""
+    llm_url: str | None = None
+    llm_model: str | None = None
+    docling_base: str | None = None
+    progress_current: int | None = None
+    progress_total: int | None = None
+    cancel_requested: bool = False
 
 
 MAIN_LOOP: asyncio.AbstractEventLoop | None = None
@@ -61,6 +67,8 @@ async def _lifespan(app: FastAPI):
     global MAIN_LOOP
     MAIN_LOOP = asyncio.get_running_loop()
     _load_state()
+    from webui.catalog_scheduler import start_scheduler
+    start_scheduler()
     yield
 
 
@@ -113,6 +121,12 @@ def _save_state() -> None:
                 "title": st.title,
                 "error": st.error,
                 "created_at": st.created_at,
+                "llm_url": st.llm_url,
+                "llm_model": st.llm_model,
+                "docling_base": st.docling_base,
+                "progress_current": st.progress_current,
+                "progress_total": st.progress_total,
+                "cancel_requested": st.cancel_requested,
             }
         sessions_data = {sid: sorted(tids) for sid, tids in SESSIONS.items()}
         payload = {"tasks": tasks_data, "sessions": sessions_data}
@@ -158,15 +172,30 @@ def _load_state() -> None:
             except Exception:
                 pass
         raw_path_file = LOG_DIR / tid / "raw_answer.log"
+        # Restore search results
+        search_results = None
+        search_results_file = LOG_DIR / tid / "search_results.json"
+        if search_results_file.exists():
+            try:
+                search_results = json.loads(search_results_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
         TASKS[tid] = TaskState(
             id=tid,
             status=status,
             logs=logs,
             parsed=parsed,
+            search_results=search_results,
             error=meta.get("error"),
             files=meta.get("files", []),
             title=meta.get("title", ""),
             created_at=created_at,
+            llm_url=meta.get("llm_url") or meta.get("ministral_url"),
+            llm_model=meta.get("llm_model") or meta.get("ministral_model"),
+            docling_base=meta.get("docling_base"),
+            progress_current=meta.get("progress_current"),
+            progress_total=meta.get("progress_total"),
+            cancel_requested=bool(meta.get("cancel_requested", False)),
             raw_path=str(raw_path_file) if raw_path_file.exists() else None,
         )
 
@@ -175,6 +204,15 @@ def _load_state() -> None:
         valid = {t for t in tids if t in TASKS}
         if valid:
             SESSIONS[sid] = valid
+
+
+def _find_active_catalog_task() -> TaskState | None:
+    """Return the current active catalog upload task, if any."""
+    for task in reversed(TASKS.values()):
+        if task.status in ("created", "running", "cancelling"):
+            if task.title.startswith("Индекс e2e4:"):
+                return task
+    return None
 
 
 async def _broadcast(task_id: str, payload: dict[str, Any]) -> None:
@@ -226,7 +264,14 @@ def _append_log(task_id: str, line: str) -> None:
         pass
 
 
-async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | None, ministral_model: str | None, docling_base: str | None) -> None:
+def _update_progress(task_id: str, current: int, total: int) -> None:
+    state = TASKS[task_id]
+    state.progress_current = current
+    state.progress_total = total
+    _schedule_broadcast(task_id, {"type": "progress", "current": current, "total": total})
+
+
+async def _run_task(task_id: str, file_paths: list[str], llm_url: str | None, llm_model: str | None, docling_base: str | None) -> None:
     state = TASKS[task_id]
     state.status = "running"
     await _broadcast(task_id, {"type": "status", "status": state.status})
@@ -260,9 +305,9 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
                 except Exception:
                     pass
 
-        # Preflight: check external services (Ministral, Docling). If unreachable, abort.
+        # Preflight: check external services (LLM, Docling). If unreachable, abort.
         tender_logger = logging.getLogger("tender")
-        effective_ministral = ministral_url or MINISTRAL_URL
+        effective_llm = llm_url or LLM_URL
         effective_docling = docling_base or DOCLING_BASE_URL
 
         def _service_up(url: str) -> tuple[bool, str]:
@@ -276,10 +321,10 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
                 return False, str(e)
 
         unavailable = []
-        if effective_ministral:
-            ok, detail = _service_up(effective_ministral)
+        if effective_llm:
+            ok, detail = _service_up(effective_llm)
             if not ok:
-                unavailable.append(("Ministral", effective_ministral, detail))
+                unavailable.append(("LLM", effective_llm, detail))
         if effective_docling:
             ok, detail = _service_up(effective_docling)
             if not ok:
@@ -295,15 +340,16 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
             tender_logger.error("Preflight failed: %s", state.error)
             return
 
-        from .analysis_worker import run_analysis as web_run
+        from .worker import run_analysis as web_run
 
         result = await loop.run_in_executor(
             None,
-            lambda: web_run(task_id, file_paths, send_log_threadsafe, ministral_url, ministral_model, effective_docling),
+            lambda: web_run(task_id, file_paths, send_log_threadsafe, llm_url, llm_model, effective_docling),
         )
 
         state.status = "done"
         state.parsed = result.get("parsed")
+        state.search_results = result.get("search_results")
         # We no longer use a separate 'results' folder; parsed result saved under LOG_DIR/<task_id>/result.json
         state.result_path = None
         state.prompt_path = None
@@ -314,6 +360,11 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
             await _broadcast(task_id, {"type": "result_data", "json": state.parsed})
         except Exception:
             pass
+        if state.search_results:
+            try:
+                await _broadcast(task_id, {"type": "search_results", "json": state.search_results})
+            except Exception:
+                pass
     except Exception as e:
         state.status = "failed"
         state.error = str(e)
@@ -321,8 +372,85 @@ async def _run_task(task_id: str, file_paths: list[str], ministral_url: str | No
         _save_state()
         await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
     finally:
-        # Clean up uploaded files to free disk space
-        _cleanup_upload_dir(task_id)
+        # Keep uploaded files until task deletion so repeat is possible
+        pass
+
+
+async def _run_qdrant_task(task_id: str, file_path: str) -> None:
+    state = TASKS[task_id]
+    state.status = "running"
+    state.progress_current = 0
+    state.progress_total = 0
+    await _broadcast(task_id, {"type": "status", "status": state.status})
+    await _broadcast(task_id, {"type": "progress", "current": 0, "total": 0})
+    try:
+        loop = asyncio.get_running_loop()
+
+        def send_log_threadsafe(line: str) -> None:
+            try:
+                _append_log(task_id, line)
+            except Exception:
+                try:
+                    TASKS[task_id].logs.append(line)
+                except Exception:
+                    pass
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _broadcast(task_id, {"type": "log", "text": line}),
+                        loop,
+                    )
+                except Exception:
+                    pass
+
+        def send_progress_threadsafe(current: int, total: int) -> None:
+            try:
+                _update_progress(task_id, current, total)
+            except Exception:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _broadcast(task_id, {"type": "progress", "current": current, "total": total}),
+                        loop,
+                    )
+                except Exception:
+                    pass
+
+        def cancel_check() -> bool:
+            return TASKS[task_id].cancel_requested
+
+        from core.qdrant_indexer import TenderMVPQdrant
+        indexer = TenderMVPQdrant(qdrant_path=str(DATA_DIR / "qdrant_db"))
+        count = await loop.run_in_executor(
+            None,
+            lambda: indexer.process_file(
+                file_path,
+                log_cb=send_log_threadsafe,
+                progress_cb=send_progress_threadsafe,
+                task_id=task_id,
+                cancel_cb=cancel_check,
+            ),
+        )
+
+        if TASKS[task_id].cancel_requested:
+            state.status = "cancelled"
+            state.error = "Обработка отменена"
+            _append_log(task_id, "⚠️ Обработка отменена пользователем")
+        else:
+            state.status = "done"
+            state.error = None
+            state.progress_current = state.progress_total = count
+            _append_log(task_id, f"✅ Индексация завершена: {count} товаров добавлено в Qdrant")
+
+        _save_state()
+        await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+        await _broadcast(task_id, {"type": "progress", "current": state.progress_current or 0, "total": state.progress_total or 0})
+    except Exception as e:
+        state.status = "failed"
+        state.error = str(e)
+        _append_log(task_id, f"❌ Ошибка индексации: {e}")
+        _save_state()
+        await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+    finally:
+        pass
 
 
 def _cleanup_upload_dir(task_id: str) -> None:
@@ -378,14 +506,16 @@ async def index(request: Request, task_id: str | None = None):
                 initial_json = json.dumps(state.parsed, ensure_ascii=False, indent=2) if state.parsed is not None else ""
             except Exception:
                 initial_json = ""
-            # raw availability: check persisted log file directly
-            raw_path = LOG_DIR / task_id / 'raw_answer.log'
+            try:
+                initial_search_results = json.dumps(state.search_results, ensure_ascii=False, indent=2) if state.search_results is not None else ""
+            except Exception:
+                initial_search_results = ""
             context.update(
                 task_id=task_id,
                 status=state.status,
                 initial_logs=initial_logs,
                 initial_json=initial_json,
-                raw_available=raw_path.exists(),
+                initial_search_results=initial_search_results,
                 error=state.error or "",
                 task_files=state.files,
                 task_title=state.title or "",
@@ -401,8 +531,8 @@ async def index(request: Request, task_id: str | None = None):
 async def start_analyze(
     request: Request,
     files: list[UploadFile] = File(...),
-    ministral_url: str = Form(default=""),
-    ministral_model: str = Form(default=""),
+    llm_url: str = Form(default=""),
+    llm_model: str = Form(default=""),
     docling_base: str = Form(default=""),
 ):
     task_id = uuid.uuid4().hex
@@ -422,8 +552,11 @@ async def start_analyze(
         files=[f.filename or "file" for f in files],
         title="",
         created_at=format_russian_datetime(datetime.now().astimezone()),
+        llm_url=llm_url or None,
+        llm_model=llm_model or None,
+        docling_base=docling_base or None,
     )
-    asyncio.create_task(_run_task(task_id, saved, ministral_url or None, ministral_model or None, docling_base or None))
+    asyncio.create_task(_run_task(task_id, saved, llm_url or None, llm_model or None, docling_base or None))
     # Associate task with session
     session_id = request.cookies.get("tender_session")
     created_new_session = False
@@ -437,6 +570,130 @@ async def start_analyze(
     if created_new_session:
         redirect.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
     return redirect
+
+
+@app.post("/search_json")
+async def start_search_json(
+    request: Request,
+    manual_json: str = Form(default=""),
+    json_file: UploadFile | None = File(default=None),
+    llm_url: str = Form(default=""),
+    llm_model: str = Form(default=""),
+):
+    task_id = uuid.uuid4().hex
+    task_dir = UPLOAD_ROOT / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+
+    source = None
+    source_name = "manual_input.json"
+    if json_file and json_file.filename:
+        safe_name = (json_file.filename or "input.json").replace("/", "_").replace("\\", "_")
+        source_name = safe_name
+        out_path = task_dir / safe_name
+        content = await json_file.read()
+        out_path.write_bytes(content)
+        try:
+            source = content.decode("utf-8", errors="ignore")
+        except Exception:
+            source = ""
+    elif manual_json.strip():
+        source = manual_json
+        out_path = task_dir / source_name
+        out_path.write_text(source, encoding="utf-8")
+    else:
+        return JSONResponse({"error": "Укажите JSON вручную или загрузите JSON-файл."}, status_code=400)
+
+    try:
+        parsed = json.loads(source)
+    except Exception as exc:
+        return JSONResponse({"error": f"Неверный JSON: {exc}"}, status_code=400)
+
+    TASKS[task_id] = TaskState(
+        id=task_id,
+        status="created",
+        files=[source_name],
+        title="Поиск по JSON",
+        created_at=format_russian_datetime(datetime.now().astimezone()),
+        llm_url=llm_url or None,
+        llm_model=llm_model or None,
+    )
+
+    asyncio.create_task(_run_json_task(task_id, parsed, llm_url or None, llm_model or None))
+
+    session_id = request.cookies.get("tender_session")
+    created_new_session = False
+    if not session_id:
+        session_id = uuid.uuid4().hex
+        created_new_session = True
+    SESSIONS.setdefault(session_id, set()).add(task_id)
+    _save_state()
+
+    response = JSONResponse({"status": "ok", "task_id": task_id})
+    if created_new_session:
+        response.set_cookie("tender_session", session_id, httponly=True, samesite="lax")
+    return response
+
+
+async def _run_json_task(
+    task_id: str,
+    parsed_json: dict,
+    llm_url: str | None,
+    llm_model: str | None,
+) -> None:
+    state = TASKS[task_id]
+    state.status = "running"
+    await _broadcast(task_id, {"type": "status", "status": state.status})
+    try:
+        loop = asyncio.get_running_loop()
+
+        def send_log_threadsafe(line: str) -> None:
+            try:
+                _append_log(task_id, line)
+            except Exception:
+                try:
+                    TASKS[task_id].logs.append(line)
+                except Exception:
+                    pass
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _broadcast(task_id, {"type": "log", "text": line}),
+                        loop,
+                    )
+                except Exception:
+                    pass
+
+        from .worker import run_search_json as web_run
+
+        result = await loop.run_in_executor(
+            None,
+            lambda: web_run(task_id, parsed_json, send_log_threadsafe, llm_url, llm_model),
+        )
+
+        state.status = "done"
+        state.parsed = result.get("parsed")
+        state.search_results = result.get("search_results")
+        state.result_path = None
+        state.prompt_path = None
+        state.raw_path = result.get("raw_path")
+        _save_state()
+        await _broadcast(task_id, {"type": "status", "status": state.status})
+        try:
+            await _broadcast(task_id, {"type": "result_data", "json": state.parsed})
+        except Exception:
+            pass
+        if state.search_results:
+            try:
+                await _broadcast(task_id, {"type": "search_results", "json": state.search_results})
+            except Exception:
+                pass
+    except Exception as e:
+        state.status = "failed"
+        state.error = str(e)
+        _append_log(task_id, f"❌ Ошибка: {e}")
+        _save_state()
+        await _broadcast(task_id, {"type": "status", "status": state.status, "error": state.error})
+    finally:
+        pass
 
 
 @app.post("/task/{task_id}/rename")
@@ -470,6 +727,42 @@ async def delete_task(request: Request, task_id: str):
     return JSONResponse({"status": "ok"})
 
 
+@app.post("/task/{task_id}/repeat")
+async def repeat_task(request: Request, task_id: str):
+    session_id = request.cookies.get("tender_session")
+    if not session_id or task_id not in SESSIONS.get(session_id, set()) or task_id not in TASKS:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+
+    original = TASKS[task_id]
+    upload_dir = UPLOAD_ROOT / task_id
+    if not upload_dir.exists() or not any(upload_dir.iterdir()):
+        return JSONResponse({"error": "Исходные файлы задачи недоступны. Повторите загрузку."}, status_code=404)
+
+    new_task_id = uuid.uuid4().hex
+    new_upload_dir = UPLOAD_ROOT / new_task_id
+    new_upload_dir.mkdir(parents=True, exist_ok=True)
+    saved_files: list[str] = []
+    for child in sorted(upload_dir.iterdir()):
+        if child.is_file():
+            dest = new_upload_dir / child.name
+            shutil.copy2(child, dest)
+            saved_files.append(str(dest))
+
+    TASKS[new_task_id] = TaskState(
+        id=new_task_id,
+        files=original.files.copy(),
+        title=f"Повтор {original.title or original.id[:8]}",
+        created_at=format_russian_datetime(datetime.now().astimezone()),
+        llm_url=original.llm_url,
+        llm_model=original.llm_model,
+        docling_base=original.docling_base,
+    )
+    SESSIONS.setdefault(session_id, set()).add(new_task_id)
+    _save_state()
+    asyncio.create_task(_run_task(new_task_id, saved_files, original.llm_url, original.llm_model, original.docling_base))
+    return JSONResponse({"status": "ok", "task_id": new_task_id})
+
+
 @app.get("/task/{task_id}")
 async def task_page(request: Request, task_id: str):
     # Redirect to index; index will enforce session ownership
@@ -495,6 +788,8 @@ async def ws_task(task_id: str, websocket: WebSocket):
         await websocket.send_text(json.dumps({"type": "status", "status": state.status, "error": state.error}, ensure_ascii=False))
         if state.parsed is not None:
             await websocket.send_text(json.dumps({"type": "result_data", "json": state.parsed}, ensure_ascii=False))
+        if state.search_results is not None:
+            await websocket.send_text(json.dumps({"type": "search_results", "json": state.search_results}, ensure_ascii=False))
 
         while True:
             await websocket.receive_text()
@@ -505,26 +800,6 @@ async def ws_task(task_id: str, websocket: WebSocket):
 
 
 
-
-
-@app.get("/raw/{task_id}")
-async def raw_response(request: Request, task_id: str):
-    # Enforce session-based access to raw AI response
-    session_id = request.cookies.get("tender_session")
-    if not session_id or task_id not in SESSIONS.get(session_id, set()):
-        return HTMLResponse("Not found", status_code=404)
-
-    # Read the persisted raw response from the logs folder (LOG_DIR/<task_id>/raw_answer.log)
-    raw_path = LOG_DIR / task_id / 'raw_answer.log'
-    if not raw_path.exists():
-        return HTMLResponse("Raw response not available", status_code=404)
-
-    try:
-        text = raw_path.read_text(encoding="utf-8")
-    except Exception:
-        return HTMLResponse("Failed to read raw file", status_code=500)
-
-    return HTMLResponse(content=text, media_type="text/plain")
 
 
 @app.get("/history", response_class=HTMLResponse)
@@ -555,14 +830,12 @@ async def history_page(request: Request):
                     logs_text = log_file.read_text(encoding="utf-8")
                 except Exception:
                     logs_text = ""
-        raw_available = (LOG_DIR / tid / "raw_answer.log").exists()
         tasks_detail.append({
             "id": tid,
             "status": st.status,
             "files": st.files,
             "error": st.error or "",
             "logs": logs_text,
-            "raw_available": raw_available,
             "created_at": st.created_at,
         })
 
@@ -594,3 +867,107 @@ async def task_logs(request: Request, task_id: str):
         except Exception:
             return HTMLResponse("Failed to read log file", status_code=500)
     return HTMLResponse(content=text, media_type="text/plain")
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, error_message: str | None = None):
+    active_task = _find_active_catalog_task()
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="admin.html",
+        context={
+            "request": request,
+            "active_task": active_task,
+            "error_message": error_message,
+        },
+    )
+
+@app.get("/admin/status/{task_id}", response_class=HTMLResponse)
+async def admin_status(request: Request, task_id: str):
+    state = TASKS.get(task_id)
+    if state is None:
+        return HTMLResponse("Task not found", status_code=404)
+
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="admin_status.html",
+        context={
+            "request": request,
+            "task_id": task_id,
+            "status": state.status,
+            "logs": "\n".join(state.logs),
+            "error": state.error or "",
+            "progress_current": state.progress_current or 0,
+            "progress_total": state.progress_total or 0,
+            "filename": state.files[0] if state.files else "файл",
+        },
+    )
+
+@app.post("/admin/cancel/{task_id}")
+async def admin_cancel(request: Request, task_id: str):
+    state = TASKS.get(task_id)
+    if state is None:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+
+    if state.status in ("done", "failed", "cancelled"):
+        return JSONResponse({"status": "ok", "message": "Задача уже завершена"})
+
+    state.cancel_requested = True
+    if state.status not in ("cancelled", "failed"):
+        state.status = "cancelling"
+    _append_log(task_id, "⚠️ Запрошена отмена обработки")
+    _save_state()
+    await _broadcast(task_id, {"type": "status", "status": state.status})
+    return JSONResponse({"status": "ok"})
+
+@app.post("/admin/upload_catalog")
+async def admin_upload_catalog(request: Request, file: UploadFile = File(...)):
+    from core.config import DATA_DIR
+    import uuid
+
+    active_task = _find_active_catalog_task()
+    if active_task is not None:
+        return TEMPLATES.TemplateResponse(
+            request=request,
+            name="admin.html",
+            context={
+                "request": request,
+                "active_task": active_task,
+                "error_message": "Сейчас выполняется обработка прайс-листа. Новую загрузку нельзя запускать до её завершения.",
+            },
+        )
+
+    task_id = uuid.uuid4().hex
+    out_dir = DATA_DIR / "catalogs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = f"{task_id}_{file.filename}"
+    out_path = out_dir / safe_name
+    content = await file.read()
+    out_path.write_bytes(content)
+
+    TASKS[task_id] = TaskState(
+        id=task_id,
+        status="created",
+        files=[file.filename or "file"],
+        title=f"Индекс e2e4: {file.filename}",
+        created_at=format_russian_datetime(datetime.now().astimezone()),
+        llm_url=None,
+        llm_model=None,
+        docling_base=None,
+        progress_current=0,
+        progress_total=0,
+    )
+    _save_state()
+    asyncio.create_task(_run_qdrant_task(task_id, str(out_path)))
+
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="admin.html",
+        context={
+            "request": request,
+            "active_task": TASKS[task_id],
+            "error_message": None,
+        },
+    )
+

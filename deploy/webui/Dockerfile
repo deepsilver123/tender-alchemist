@@ -35,17 +35,20 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 # ── Application code ─────────────────────────────────────────────────────────
 COPY src/ /app/src/
-COPY data/ /app/data/
-COPY scripts/ /app/scripts/
-COPY run_webui.py /app/run_webui.py
+COPY data/product_terms.json /app/data/product_terms.json
+COPY data/catalogs/e2e4_flat.csv /app/data/catalogs/e2e4_flat.csv
+COPY scripts/e2e4_ingest.py /app/scripts/e2e4_ingest.py
+COPY scripts/index_catalog.py /app/scripts/index_catalog.py
+COPY scripts/run_webui.py /app/scripts/run_webui.py
 
 # Ensure runtime directories exist
-RUN mkdir -p /app/data/uploads /app/logs
+RUN mkdir -p /app/data/uploads /app/data/catalogs /app/data/downloads /app/logs
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
 EXPOSE 8000
 
 ENV WEBUI_HOST=0.0.0.0 \
-    WEBUI_PORT=8000
+    WEBUI_PORT=8000 \
+    E2E4_CATALOG_URL=https://e2e4online.ru/ws/excel/irkutsk.e2e4online.ru.zip
 
-CMD ["python", "run_webui.py"]
+CMD ["python", "scripts/run_webui.py"]

@@ -87,30 +87,78 @@ def fix_mojibake(s: object) -> str:
 
 def detect_header(sheet, max_rows=40):
     best_row_idx = None
-    best_count = -1
+    best_score = -1
     for i, row in enumerate(sheet.iter_rows(values_only=True)):
         if i >= max_rows:
             break
-        vals = [v for v in row if v is not None and str(v).strip() != '']
-        if len(vals) > best_count:
-            best_count = len(vals)
+        vals = [fix_mojibake(v) for v in row if v is not None]
+        non_empty = [v for v in vals if v.strip()]
+        
+        if len(non_empty) < 3:  # слишком мало колонок
+            continue
+            
+        # Считаем "баллы" за заголовок
+        score = len(non_empty)  # больше колонок лучше
+        
+        # Заголовки обычно короткие, без длинных описаний
+        long_vals = [v for v in non_empty if len(v) > 50]
+        if long_vals:
+            score -= len(long_vals) * 2  # штраф за длинные значения
+            
+        # Заголовки часто содержат ключевые слова
+        header_keywords = ['наименование', 'товар', 'цена', 'артикул', 'модель', 'бренд', 'количество']
+        keyword_count = sum(1 for v in non_empty if any(kw in v.lower() for kw in header_keywords))
+        score += keyword_count * 3
+        
+        # Данные часто содержат числа, цены
+        numeric_vals = [v for v in non_empty if any(c.isdigit() for c in v)]
+        if numeric_vals:
+            score -= len(numeric_vals)  # штраф за числа в заголовках
+            
+        if score > best_score:
+            best_score = score
             best_row_idx = i
+            
     return best_row_idx
 
 
 def normalize_header(raw_header):
     hdr = [fix_mojibake(x) for x in raw_header]
+    translate = {
+        'код': 'Link',
+        'наименование': 'Name',
+        'название': 'Name',
+        'гар.': 'Warranty',
+        'наличие': 'Availability',
+        'цена': 'Price',
+        'срок поставки': 'DeliveryTime',
+        'примечание': 'Note',
+        'артикул': 'SKU',
+        'модель': 'Model',
+        'бренд': 'Brand',
+        'количество': 'Quantity',
+    }
     out = []
     seen = {}
     for i, h in enumerate(hdr):
-        name = h or f"col_{i}"
+        raw = h or f"col_{i}"
+        name = raw.strip()
+        if not name:
+            name = f"col_{i}"
+        lower = name.lower()
+        for rus, eng in translate.items():
+            if rus in lower:
+                name = eng
+                break
         name = re.sub(r"\s+", " ", name).strip()
+        name = re.sub(r"[^A-Za-z0-9_ ]+", "", name)
+        name = name.replace(" ", "_")
         if not name:
             name = f"col_{i}"
         key = name
         if key in seen:
             seen[key] += 1
-            key = f"{name} {seen[key]}"
+            key = f"{name}_{seen[key]}"
         else:
             seen[key] = 1
         out.append(key)
@@ -137,8 +185,10 @@ def flatten_workbook(xlsx_path: Path, out_csv_path: Path, sample_limit: int | No
                 if header_row is None:
                     continue
                 columns = normalize_header(header_row)
+                if columns:
+                    columns = columns[:-1]  # последний столбец обычно избыточен
                 if writer is None:
-                    fieldnames = ['source_file', 'sheet'] + columns
+                    fieldnames = ['sheet'] + columns
                     writer = csv.DictWriter(csvf, fieldnames=fieldnames, delimiter=';')
                     writer.writeheader()
                 empty_streak = 0
@@ -146,6 +196,10 @@ def flatten_workbook(xlsx_path: Path, out_csv_path: Path, sample_limit: int | No
                     if i <= header_idx:
                         continue
                     row_vals = [fix_mojibake(v) for v in row]
+                    non_empty = [v for v in row_vals if v and str(v).strip()]
+                    if len(non_empty) < 3:
+                        # пропускаем служебные строки и разделы, в которых нет настоящих товарных данных
+                        continue
                     if all((not (v and str(v).strip())) for v in row_vals):
                         empty_streak += 1
                         if empty_streak >= 20:
@@ -153,7 +207,7 @@ def flatten_workbook(xlsx_path: Path, out_csv_path: Path, sample_limit: int | No
                         else:
                             continue
                     empty_streak = 0
-                    d = {'source_file': xlsx_path.name, 'sheet': sheetname}
+                    d = {'sheet': sheetname}
                     for j, col in enumerate(columns):
                         d[col] = row_vals[j] if j < len(row_vals) else ''
                     writer.writerow(d)

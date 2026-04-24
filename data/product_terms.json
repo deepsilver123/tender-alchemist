@@ -39,7 +39,7 @@
   },
   {
     "id": "memory.ram",
-    "name": "Оперативная память (RAM)",
+    "name": "Оперативная память",
     "aliases": [
       "оперативная память",
       "ram",
@@ -60,7 +60,7 @@
   },
   {
     "id": "cpu",
-    "name": "Процессор (CPU)",
+    "name": "Процессор",
     "aliases": ["процессор", "cpu", "центральный процессор"]
   },
   {
@@ -87,11 +87,6 @@
     "id": "power.supply",
     "name": "Блок питания",
     "aliases": ["блок питания", "psu", "power supply"]
-  },
-  {
-    "id": "chassis.pc",
-    "name": "Корпус ПК",
-    "aliases": ["корпус", "корпус системного блока", "pc case", "системный блок"]
   },
   {
     "id": "cooling.cpu",
@@ -136,12 +131,12 @@
   },
   {
     "id": "network.switch",
-    "name": "Коммутатор (Switch)",
+    "name": "Коммутатор",
     "aliases": ["коммутатор", "switch", "сетевой коммутатор", "коммутатор poe", "poe switch"]
   },
   {
     "id": "network.router",
-    "name": "Маршрутизатор (Router)",
+    "name": "Маршрутизатор",
     "aliases": ["роутер", "маршрутизатор", "router"]
   },
   {
@@ -156,8 +151,8 @@
   },
   {
     "id": "network.cable",
-    "name": "Сетевой кабель / оптика",
-    "aliases": ["витая пара", "кабель витая пара", "ethernet cable", "lan cable", "cat5e", "cat6", "cat6a", "оптический кабель", "fiber optic cable"]
+    "name": "Сетевой кабель",
+    "aliases": ["витая пара", "кабель витая пара", "ethernet cable", "lan cable", "cat5e", "cat6", "cat6a"]
   },
   {
     "id": "network.patch_panel",
@@ -166,7 +161,7 @@
   },
   {
     "id": "network.firewall",
-    "name": "Межсетевой экран / Firewall",
+    "name": "Межсетевой экран",
     "aliases": ["фаервол", "межсетевой экран", "firewall", "аппаратный файрвол"]
   },
   {
@@ -186,18 +181,23 @@
   },
   {
     "id": "printer.mfu",
-    "name": "МФУ (принтер/сканер)",
+    "name": "МФУ",
     "aliases": ["мфу", "многофункциональное устройство", "multifunction printer"]
   },
   {
     "id": "scanner",
-    "name": "Сканер документов",
+    "name": "Сканер",
     "aliases": ["сканер", "сканер документов", "document scanner", "планшетный сканер", "sheet-fed scanner"]
   },
   {
+    "id": "consumable.cartridge",
+    "name": "Картридж",
+    "aliases": ["картридж", "тонер-картридж", "cartridge"]
+  },
+    {
     "id": "consumable.toner",
-    "name": "Картридж / тонер",
-    "aliases": ["картридж", "тонер", "тонер-картридж", "cartridge"]
+    "name": "Тонер",
+    "aliases": ["тонер", "toner", "порошок для лазерного принтера"]
   },
   {
     "id": "consumable.drum",
@@ -281,13 +281,13 @@
   },
   {
     "id": "camera.ip",
-    "name": "IP-камера / видеонаблюдение",
+    "name": "IP-камера",
     "aliases": ["ip камера", "видеокамера", "камера видеонаблюдения", "cctv камера"]
   }
   ,
   {
     "id": "computer.allinone",
-    "name": "Моноблок (All-in-One ПК)",
+    "name": "Моноблок",
     "aliases": ["моноблок", "моноблок ПК", "all-in-one", "all in one", "aio", "all-in-one pc", "aio pc", "all-in-one компьютер"]
   }
   ,
@@ -299,12 +299,12 @@
   ,
   {
     "id": "computer.desktop",
-    "name": "Настольный ПК / Системный блок",
-    "aliases": ["персональный компьютер", "настольный компьютер", "системный блок", "desktop", "desktop pc", "стационарный пк", "пк"]
+    "name": "Системный блок",
+    "aliases": ["персональный компьютер", "настольный компьютер", "системный блок", "desktop", "desktop pc", "стационарный пк", "пк", "корпус пк"]
   },
   {
     "id": "computer.mini",
-    "name": "Мини‑ПК / NUC",
+    "name": "Мини‑ПК",
     "aliases": ["миниматюрный персональный компьютер", "мини-пк", "mini pc", "mini-pc", "nuc", "intel nuc", "компактный пк", "sff", "small form factor"]
   },
   {

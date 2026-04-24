@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель — Tender Alchemist</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #eef2ff;
+            color: #0f172a;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; padding: 0; background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%); }
+        .page { width: min(100%, 1100px); margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+        header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 2rem; }
+        .title-group h1 { margin: 0; font-size: clamp(2rem, 2.5vw, 2.75rem); letter-spacing: -0.04em; }
+        .subtitle { margin: 0.6rem 0 0; color: #475569; max-width: 45rem; line-height: 1.75; }
+        .card { background: #ffffff; border-radius: 28px; box-shadow: 0 24px 70px rgba(15, 23, 42, 0.09); padding: 2rem; }
+        .section { margin-bottom: 1.75rem; }
+        .section:last-child { margin-bottom: 0; }
+        .section h2 { margin: 0 0 0.75rem; font-size: 1.35rem; }
+        .section p { margin: 0 0 1.25rem; color: #475569; }
+        .upload-form { display: grid; gap: 1.2rem; }
+        .file-input {
+            display: block;
+            width: 100%;
+            padding: 1rem 1rem;
+            border-radius: 16px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #0f172a;
+            font-size: 1rem;
+        }
+        .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 3rem; gap: 0.5rem; padding: 0 1.25rem; border-radius: 999px; font-weight: 700; border: none; text-decoration: none; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+        .btn.primary { background: linear-gradient(135deg, #2563eb, #4338ca); color: #fff; box-shadow: 0 16px 35px rgba(37, 99, 235, 0.18); }
+        .btn.primary:hover { transform: translateY(-1px); }
+        .btn.secondary { background: #f8fafc; color: #334155; }
+        .hint { color: #64748b; font-size: 0.95rem; }
+        .hint.warning { color: #b45309; }
+        .message { border-radius: 18px; padding: 1rem 1.2rem; margin-bottom: 1.25rem; font-weight: 600; }
+        .message.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .active-task-section { padding: 1.25rem 1.3rem; border-radius: 22px; background: #f8fafc; border: 1px solid #cbd5e1; margin-bottom: 1.5rem; }
+        .progress-details { margin-top: 0.75rem; }
+        .progress-fill { height: 0.75rem; border-radius: 999px; background: linear-gradient(90deg, #2563eb, #4338ca); transition: width 0.3s ease; }
+        .task-log { margin: 1rem 0 0; padding: 1rem; border-radius: 18px; background: #f1f5f9; color: #0f172a; font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; max-height: 14rem; overflow: auto; }
+        .status-panel { display: none; gap: 1rem; align-items: center; padding: 1.4rem 1.2rem; border-radius: 18px; background: #eef2ff; border: 1px solid #c7d2fe; }
+        .status-panel.active { display: flex; }
+        .status-badge { width: 3rem; height: 3rem; display: grid; place-items: center; border-radius: 50%; background: #e0e7ff; font-size: 1.4rem; }
+        .progress-bar { width: 100%; height: 0.75rem; border-radius: 999px; background: #e2e8f0; overflow: hidden; position: relative; }
+        .progress-bar::before { content: ""; position: absolute; left: -30%; top: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.7), transparent); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { left: -30%; } 100% { left: 110%; } }
+        .back-link { color: #334155; display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; font-weight: 600; }
+        .back-link:hover { color: #1e293b; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="title-group">
+                <h1>Админ-панель</h1>
+                <p class="subtitle">Загрузите эталонный прайс-лист e2e4 и индексируйте его в Qdrant. Статус загрузки и прогресс будут отображены сразу.</p>
+            </div>
+            <a href="/" class="back-link">← На главную</a>
+        </header>
+
+        <div class="card">
+            {% if error_message %}
+            <div class="message error">{{ error_message }}</div>
+            {% endif %}
+
+            {% if active_task %}
+            <div class="section active-task-section">
+                <h2>Текущая обработка прайс-листа</h2>
+                <p>Файл: <strong>{{ active_task.files[0] }}</strong>. Статус: <strong>{{ active_task.status }}</strong>.</p>
+                <div class="progress-details">
+                    <div class="progress-label">Прогресс: {{ active_task.progress_current or 0 }} / {{ active_task.progress_total or 0 }}</div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: {{ 0 if not active_task.progress_total else (active_task.progress_current * 100 / active_task.progress_total) }}%;"></div></div>
+                </div>
+                {% if active_task.logs %}
+                <pre class="task-log">{{ active_task.logs[-6:] | join('\n') }}</pre>
+                {% endif %}
+                <div class="actions">
+                    <button type="button" id="cancelButton" class="btn secondary" data-task-id="{{ active_task.id }}">Отмена</button>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="section">
+                <h2>Загрузить прайс-лист</h2>
+                <p>Один ZIP-архив или CSV-файл. После отправки начнётся индексация прайс-листа на этой странице.</p>
+                <form id="uploadForm" class="upload-form" action="/admin/upload_catalog" method="post" enctype="multipart/form-data">
+                    <input class="file-input" type="file" name="file" accept=".csv,.zip" required {% if active_task %}disabled{% endif %}>
+                    <div class="actions">
+                        <button type="submit" class="btn primary" {% if active_task %}disabled{% endif %}>Загрузить</button>
+                        <span class="hint">Поддерживается ZIP c csv/xlsx или чистый CSV.</span>
+                    </div>
+                </form>
+                <p class="hint warning">Перед началом индексации исходная база данных будет очищена.</p>
+            </div>
+
+            <div id="uploadStatus" class="status-panel">
+                <div class="status-badge">⏳</div>
+                <div>
+                    <strong>Загрузка и индексация...</strong>
+                    <p class="hint">Пожалуйста, не закрывайте страницу — выполняется подготовка и добавление прайс-листа в Qdrant.</p>
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const statusPanel = document.getElementById('uploadStatus');
+        const cancelButton = document.getElementById('cancelButton');
+
+        if (form) {
+            form.addEventListener('submit', (event) => {
+                const proceed = confirm('Перед началом индексации исходная база данных будет очищена.');
+                if (!proceed) {
+                    event.preventDefault();
+                    return;
+                }
+                if (statusPanel) {
+                    statusPanel.classList.add('active');
+                }
+            });
+        }
+
+        if (cancelButton) {
+            cancelButton.addEventListener('click', async () => {
+                if (!cancelButton.dataset.taskId) {
+                    return;
+                }
+                const taskId = cancelButton.dataset.taskId;
+                await fetch(`/admin/cancel/${encodeURIComponent(taskId)}`, { method: 'POST' });
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+</html>
