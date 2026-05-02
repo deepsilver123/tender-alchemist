@@ -26,3 +26,8 @@ opencv-python-headless
 aspose-words
 aspose-cells
 JPype1
+
+# ── Vector search ──
+qdrant-client
+fastembed
+pint

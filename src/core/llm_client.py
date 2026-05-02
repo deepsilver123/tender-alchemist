@@ -20,7 +20,7 @@ logger = logging.getLogger("tender")
 def _extract_content(resp_json: Dict[str, Any]) -> Optional[str]:
     if not isinstance(resp_json, dict):
         return None
-    # Common ollama/ministral formats: {"message": {"content": "..."}} or {"choices": [{"message": {...}}]}
+    # Форматы ответа Ollama/Ministral: {"message": {"content": "..."}} или {"choices": [{"message": {...}}]}
     if "message" in resp_json and isinstance(resp_json["message"], dict):
         return resp_json["message"].get("content")
     choices = resp_json.get("choices")
@@ -43,9 +43,9 @@ def call_ollama(
     num_ctx: int = 16384,
     num_predict: int = 8192,
 ) -> Optional[str]:
-    """Synchronous call to an Ollama/Ministral-compatible endpoint.
+    """Синхронный вызов Ollama/Ministral-совместимого эндпоинта.
 
-    Returns the assistant content string on success or ``None`` on failure.
+    Возвращает строку ответа ассистента при успехе или None при ошибке.
     """
     url = f"{base_url.rstrip('/')}/chat"
 
@@ -79,7 +79,7 @@ def call_ollama(
         except Exception:
             pass
 
-        # If server OOM'd on large context, try a smaller ctx as a retry
+        # Если сервер упал из-за нехватки памяти при большом контексте — повторяем с меньшим
         resp_obj = getattr(e, "response", None)
         if resp_obj is not None:
             try:
@@ -89,7 +89,7 @@ def call_ollama(
             if resp_obj.status_code == 500 and "signal: killed" in error_text and num_ctx > 8192:
                 fallback_ctx = max(8192, num_ctx // 2)
                 try:
-                    logger.info("[Ollama] Retry with reduced ctx: %s -> %s", num_ctx, fallback_ctx)
+                    logger.info("[Ollama] Повтор с уменьшенным ctx: %s -> %s", num_ctx, fallback_ctx)
                 except Exception:
                     pass
                 try:
@@ -99,7 +99,7 @@ def call_ollama(
                     return _extract_content(retry_result)
                 except Exception:
                     try:
-                        logger.error("[Ollama] Retry failed")
+                        logger.error("[Ollama] Повторный запрос не удался")
                     except Exception:
                         pass
         return None
@@ -121,7 +121,7 @@ def call_ministral(
     num_ctx: int = 16384,
     num_predict: int = 8192,
 ) -> Optional[str]:
-    """Compatibility wrapper for Ministral; currently uses the Ollama-compatible endpoint."""
+    """Обёртка совместимости для Ministral; использует Ollama-совместимый эндпоинт."""
     return call_ollama(
         prompt,
         model=model,
@@ -144,7 +144,7 @@ def call_llm(
     num_ctx: int = 16384,
     num_predict: int = 8192,
 ) -> Optional[str]:
-    """Legacy compatibility wrapper for older call_llm usage."""
+    """Устаревшая обёртка совместимости для call_llm."""
     return call_ministral(
         prompt,
         api_key=api_key,
@@ -167,9 +167,9 @@ async def call_model(
     num_ctx: Optional[int] = None,
     num_predict: Optional[int] = None,
 ) -> str:
-    """Async wrapper used by analysis pipelines. Runs blocking HTTP call in a thread.
+    """Асинхронная обёртка для пайплайнов анализа. Блокирующий HTTP-вызов запускается в потоке.
 
-    Returns the assistant string on success or an empty string on failure.
+    Возвращает строку ответа ассистента при успехе или пустую строку при ошибке.
     """
     model = model or LLM_MODEL
     api_key = api_key or LLM_API_KEY

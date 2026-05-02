@@ -24,33 +24,6 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:cuda
-    container_name: open-webui
-    ports:
-      - "3000:8080"
-    volumes:
-      - open-webui_data:/app/backend/data
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - ENABLE_RAG_WEB_SEARCH=True
-      - RAG_WEB_SEARCH_ENGINE="searxng"
-      - RAG_WEB_SEARCH_RESULT_COUNT=3
-      - RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
-      - SEARXNG_QUERY_URL="http://searxng:8080/search?q=<query>"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 0
-              capabilities: [gpu]
-    restart: always
-
   docling-serve:
     build:
       context: .
@@ -69,27 +42,8 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  searxng-core:
-    container_name: searxng-core
-    image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
-    restart: always
-    ports:
-      - 8080:8080
-    env_file: ./searxng/.env
-    volumes:
-      - ./searxng/config:/etc/searxng/
-      - core-data:/var/cache/searxng/
-
-  searxng-valkey:
-    container_name: searxng-valkey
-    image: docker.io/valkey/valkey:9-alpine
-    command: valkey-server --save 30 1 --loglevel warning
-    restart: always
-    volumes:
-      - valkey-data:/data/
-
-  # Vector database for catalog semantic search (BGE-M3 / text-embedding)
-  # Populate via: python scripts/catalog_ingest_qdrant.py
+  # Векторная база данных для семантического поиска по каталогу
+  # Наполнение: python scripts/catalog_ingest_qdrant.py
   qdrant:
     container_name: qdrant
     image: qdrant/qdrant:latest
@@ -99,6 +53,18 @@ services:
       - "6334:6334"   # gRPC
     volumes:
       - qdrant_data:/qdrant/storage
+
+  searxng-core:
+    container_name: searxng-core
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_HOSTNAME=searxng-core
+      - SEARXNG_SECRET_KEY=changeme-use-random-string
+    volumes:
+      - searxng_data:/etc/searxng
 
   webui:
     build:
@@ -128,10 +94,9 @@ services:
     restart: unless-stopped
 
 volumes:
-  core-data:
-  valkey-data:
   qdrant_data:
   ollama_data:
   open-webui_data:
   webui_data:
   webui_logs:
+  searxng_data:

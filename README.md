@@ -215,6 +215,7 @@ docker compose down
 | ollama | http://localhost:11434 | LLM API (Ollama) |
 | docling-serve | http://localhost:5001 | Конвертация документов (REST) |
 | qdrant | http://localhost:6333/dashboard | Qdrant Web UI + REST API |
+| searxng-core | http://localhost:8080 | Веб-поисковик SearXNG (для будущих функций) |
 
 ### Загрузка моделей в Docker
 
@@ -385,17 +386,20 @@ tender-alchemist/
 | `WEBUI_HOST` | `127.0.0.1` | Адрес прослушивания веб-сервера |
 | `WEBUI_PORT` | `8001` | Порт веб-сервера |
 | `LLM_BASE_URL` | `http://localhost:11434` | Базовый URL Ollama |
-| `LLM_MODEL` | `ministral-3:3b` | Основная LLM-модель (извлечение ТЗ) |
+| `LLM_MODEL` | `ministral-3:3b` | Основная LLM-модель (извлечение ТЗ, LLM-судья, discover) |
 | `LLM_QUERY_MODEL` | `qwen2.5:1.5b` | Лёгкая модель для дистилляции поисковых запросов |
 | `LLM_API_KEY` | — | API-ключ (для совместимых провайдеров) |
-| `EMBEDDING_BASE_URL` | `= LLM_BASE_URL` | URL сервиса эмбеддингов |
-| `EMBEDDING_MODEL` | `bge-m3` | Модель эмбеддингов (через Ollama) |
 | `DOCLING_BASE_URL` | `http://localhost:5001` | URL docling-serve |
 | `QDRANT_URL` | `http://localhost:6333` | URL Qdrant REST API |
-| `QDRANT_COLLECTION` | `e2e4_catalog` | Имя коллекции в Qdrant |
+| `QDRANT_COLLECTION_NAME` | `e2e4_catalog` | Имя коллекции в Qdrant |
+| `QDRANT_LOCAL_PATH` | `data/qdrant_db` | Путь для локального режима Qdrant (без сервера) |
+| `DENSE_MODEL_NAME` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | FastEmbed dense-модель |
+| `DENSE_DIM` | `384` | Размерность dense-вектора |
+| `SPARSE_MODEL_NAME` | `Qdrant/bm42-all-minilm-l6-v2-attentions` | FastEmbed sparse-модель (BM42) |
+| `SEARCH_MAX_RESULTS` | `10` | Максимальное число кандидатов из Qdrant |
 | `E2E4_CATALOG_URL` | `https://e2e4online.ru/ws/excel/irkutsk.e2e4online.ru.zip` | URL ZIP-прайса e2e4 |
-| `TZ` | системный | Часовой пояс (для планировщика) |
-| `SEARXNG_URL` | `http://localhost:8080` | URL SearXNG (не задействован в основном пайплайне) |
+| `SEARXNG_URL` | `http://localhost:8080` | URL SearXNG |
+| `TZ` | `Asia/Irkutsk` | Часовой пояс (для планировщика) |
 
 ---
 
@@ -432,4 +436,4 @@ python -c "from qdrant_client import QdrantClient; c = QdrantClient('localhost',
 
 ## Лицензия
 
-Проект разрабатывается для внутреннего использования. Лицензия не определена.
+Каво?

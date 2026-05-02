@@ -1,8 +1,9 @@
-# config.py (moved into core package)
+# config.py — единственный источник конфигурации всего проекта
+# Все настраиваемые параметры вынесены сюда; переопределяются переменными окружения.
 from pathlib import Path
 import os
 
-# --- Docling Serve ---
+# --- Docling Serve (конвертация документов) ---
 DOCLING_BASE_URL = os.environ.get("DOCLING_BASE_URL", "http://localhost:5001").rstrip("/")
 DOCLING_URL = os.environ.get("DOCLING_URL", f"{DOCLING_BASE_URL}/v1/convert/file")
 DOCLING_URL_ASYNC = os.environ.get("DOCLING_URL_ASYNC", f"{DOCLING_BASE_URL}/v1/convert/file/async")
@@ -11,31 +12,54 @@ DOCLING_RESULT_URL = os.environ.get("DOCLING_RESULT_URL", f"{DOCLING_BASE_URL}/v
 DOCLING_TIMEOUT = 120
 DOCLING_API_KEY = os.environ.get("DOCLING_API_KEY")
 
-# --- LLM service ---
-# This is a generic external LLM endpoint. It can be any Ollama-compatible HTTP API,
-# not necessarily Ministral.
+# --- LLM-сервис (Ollama-совместимый эндпоинт) ---
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:11434").rstrip("/")
 LLM_URL = os.environ.get("LLM_URL", f"{LLM_BASE_URL}/api")
 LLM_API_KEY = os.environ.get("LLM_API_KEY")
 LLM_MODEL = os.environ.get("LLM_MODEL", "ministral-3:3b")
-# Модель для генерации поисковых запросов — лёгкая и быстрая
+# Лёгкая модель для быстрой генерации поисковых запросов (NER)
 LLM_QUERY_MODEL = os.environ.get("LLM_QUERY_MODEL", "qwen2.5:1.5b")
 LLM_TEMPERATURE = 0.1
 LLM_MAX_TOKENS = 4000
-LLM_NUM_CTX = 32384   # целимся в устойчивую работу на слабой GPU
+LLM_NUM_CTX = 32384   # баланс между качеством и стабильностью на слабой GPU
 LLM_NUM_PREDICT = 8192
 
-# --- Embedding service ---
-# Separate embedding service endpoint for vectorization.
-# By default, use the same host as the main LLM service when an embedding-specific URL is not configured.
+# --- Сервис эмбеддингов ---
+# По умолчанию использует тот же хост, что и LLM
 EMBEDDING_BASE_URL = os.environ.get("EMBEDDING_BASE_URL", LLM_BASE_URL).rstrip("/")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "bge-m3")
 
-# Backwards compatibility aliases for older embedding config names.
+# Псевдонимы для обратной совместимости со старым кодом
 OLLAMA_URL = EMBEDDING_BASE_URL
 OLLAMA_EMBED_MODEL = EMBEDDING_MODEL
 
-# --- Prompt for converting tender documentation into JSON specification ---
+# --- Модели FastEmbed (локальные, без HTTP) ---
+# Плотные векторы (dense) — мультиязычная модель 384-dim
+DENSE_MODEL_NAME = os.environ.get(
+    "DENSE_MODEL_NAME",
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+)
+DENSE_DIM = int(os.environ.get("DENSE_DIM", "384"))
+# Разреженные векторы (sparse) — BM42 для лексической точности
+SPARSE_MODEL_NAME = os.environ.get(
+    "SPARSE_MODEL_NAME",
+    "Qdrant/bm42-all-minilm-l6-v2-attentions",
+)
+
+# --- Qdrant ---
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333").rstrip("/")
+# Локальный путь к БД (используется если QDRANT_URL не задан)
+QDRANT_LOCAL_PATH = os.environ.get("QDRANT_LOCAL_PATH", "data/qdrant_db")
+# Название коллекции в Qdrant
+QDRANT_COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "e2e4_catalog")
+
+# --- Каталог e2e4 (источник прайс-листов) ---
+E2E4_CATALOG_URL = os.environ.get(
+    "E2E4_CATALOG_URL",
+    "https://e2e4online.ru/ws/excel/irkutsk.e2e4online.ru.zip",
+)
+
+# --- Промпт: разбор тендерного документа в JSON ---
 TENDER_DOCUMENT_JSON_PROMPT = """Ты — эксперт по закупкам. Проанализируй документ и верни JSON по схеме.
 
 Документ содержит HTML-разметку, но основная информация — в тексте и таблицах.
@@ -75,10 +99,7 @@ SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8080").rstrip("/")
 SEARXNG_TIMEOUT = 10
 SEARCH_MAX_RESULTS = int(os.environ.get("SEARCH_MAX_RESULTS", "15"))
 
-# --- Qdrant ---
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333").rstrip("/")
-
-# Модель для генерации поисковых запросов (лёгкая — для быстрого NER)
+# Лёгкая модель для быстрого NER / генерации поисковых запросов
 SEARCH_MODEL = os.environ.get("SEARCH_MODEL", "qwen2.5:1b")
 SEARCH_NUM_CTX = 4096
 SEARCH_NUM_PREDICT = 512
@@ -116,19 +137,88 @@ MATCH_PROMPT = """Ты — суровый технический аудитор.
 {{"model": "Точное Имя Модели", "url": "ссылка", "notes": "✅ ... | ❌ ..."}}
 Никаких комментариев до или после массива."""
 
-# --- Project folders ---
-# `DATA_DIR` and `LOG_DIR` point to project-level folders (one level above `src/`)
-# PROJECT_ROOT should point to repository root (one level above `src/`).
-# config.py is in `src/core/`, so go up three levels from the file to reach repo root.
+# --- Промпт: LLM-судья для выбора лучшего кандидата из прайс-листа ---
+LLM_JUDGE_PROMPT = (
+    "Требования из технического задания:\n{requirements}\n\n"
+    "Список товаров из прайс-листа:\n{candidates}\n"
+    "Правила проверки (применяй строго по порядку):\n"
+    "ПРАВИЛО 1 — ЧИСЛОВЫЕ МИНИМУМЫ (наивысший приоритет):\n"
+    "  Если в ТЗ указано '≥ N' для мощности (Вт/W), объёма (ГБ/GB), частоты (ГГц/МГц), скорости (МБ/с) и т.п. —\n"
+    "  товар подходит ТОЛЬКО если его значение из названия >= N. Товар с меньшим значением — ОТКЛОНЯЙ немедленно.\n"
+    "  Пример: ТЗ требует ≥ 400 Вт, а товар '300W' — ОТКЛОНИТЬ. Товар '400W' или '450W' — разрешён.\n"
+    "ПРАВИЛО 2 — ЧИСЛОВЫЕ МАКСИМУМЫ:\n"
+    "  Если в ТЗ указано '≤ N' — товар подходит только если его значение <= N.\n"
+    "ПРАВИЛО 3 — КЛЮЧЕВЫЕ ТЕХНИЧЕСКИЕ МАРКЕРЫ:\n"
+    "  Если ТЗ требует конкретный тип/стандарт (DDR4, NVMe, SATA, ATX, IPS, Gold и т.п.) и в названии\n"
+    "  товара явно указан ДРУГОЙ тип — отклоняй. Если тип вообще не упомянут в названии — не отклоняй,\n"
+    "  так как краткие названия не содержат все характеристики.\n"
+    "ПРАВИЛО 4 — Б/У товары отклоняй, если ТЗ явно не разрешает б/у.\n"
+    "ПРАВИЛО 5 — Из оставшихся подходящих выбери товар с наибольшим совпадением характеристик.\n\n"
+    "Ответь ТОЛЬКО JSON без пояснений:\n"
+    "{{\"idx\": N, \"reason\": \"краткое обоснование\"}} где N — номер товара в списке (от 1).\n"
+    "Если ни один товар не подходит — {{\"idx\": 0, \"reason\": \"причина отклонения всех\"}}"
+)
+
+# --- Промпт: классификация товара как IT-оборудования (автообнаружение категорий) ---
+LLM_DISCOVER_PROMPT = (
+    "Ты — ассистент по классификации IT-оборудования. "
+    "Тебе дано название типа товара из тендерного задания. Определи: это IT-товар/оборудование?\n"
+    "Тип товара: \"{name}\"\n\n"
+    "Если это IT-товар, ответь ТОЛЬКО валидным JSON (без пояснений):\n"
+    '{{"id": "snake_case.id", "name": "Русское название", '
+    '"aliases": ["синоним 1", "синоним 2"], '
+    '"e2e4_keywords": ["СловоИзПрайса1", "СловоИзПрайса2"]}}\n\n'
+    "Где e2e4_keywords — первые слова, которыми поставщики начинают названия таких товаров "
+    "в российских прайс-листах (одно-два слова, с заглавной буквы).\n"
+    "Если НЕ IT-товар — ответь: {{\"not_it\": true}}"
+)
+
+# --- Промпт: генерация поискового запроса для каталога e2e4 ---
+# Шаблон вызывается с параметрами: category, format_line, original, specs
+LLM_QUERY_PROMPT = """\
+Ты генератор поисковых запросов для каталога IT-оборудования.
+Тебе нужно составить ОДНУ строку запроса для поиска товара категории "{category}".
+
+ВАЖНО:
+- Запрос должен начинаться СРАЗУ СЛОВОМ "{category}".
+- Категория "{category}" — это основной товар. НЕ ПЕРЕВОДИ и не заменяй её.
+- Никогда не начинай запрос с названия внутреннего компонента или детали (SSD, HDD, Оперативная память, Процессор, Материнская плата и т.п.).
+- Если в характеристиках есть SSD, RAM, CPU, это не меняет категорию товара. Запрос остаётся про {category}.
+- Если продукт — ноутбук, запрашивай ноутбук, а не отдельный накопитель или модуль памяти.
+- Используй шаблон ниже, заполняя только те части, которые есть в ТЗ.
+- Разделяй части запроса только запятой и пробелом.
+- НЕ используй символы |, [, ], →, ->, ;, :, ≥, ≤.
+- НЕ добавляй альтернативы или варианты через |.
+- НЕ добавляй слова "примерно", "не менее", "более", "или".
+- Верни ТОЛЬКО одну строку запроса, без пояснений, без кавычек, без JSON.
+
+Формат строки каталога для категории "{category}":
+  {category} → {format_line}
+
+Правила подстановки значений:
+- Квадратные скобки [ ] — необязательные части. Подставляй значение или пропусти фрагмент.
+- Угловые скобки < > — место для значения из ТЗ. Пиши только значение, без скобок.
+- Вертикальная черта | — выбор одного варианта.
+- Бренд и модель: берёшь из "Название из ТЗ" или "Характеристики из ТЗ". Нет — пропусти.
+- Объёмы памяти/накопителей: 16Gb, 512Gb, 1Tb.
+- ОС: "W10Pro" / "W11Pro" / "W11" / пропусти если нет.
+- Если значение неизвестно — пропусти фрагмент, не придумывай.
+
+Категория: {category}
+Название из ТЗ: {original}
+Характеристики из ТЗ: {specs}
+Поисковый запрос (строка должна начинаться с "{category}"):"""
+
+# --- Корневые директории проекта ---
+# config.py находится в src/core/ — поднимаемся на 3 уровня до корня репозитория
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 LOG_DIR = PROJECT_ROOT / "logs"
 
-# --- Web UI host/port ---
-# `WEBUI_HOST` and `WEBUI_PORT` can be set via environment variables
-# or consumed by other scripts that import this config.
+# --- Веб-интерфейс ---
+# Переопределяются через переменные окружения WEBUI_HOST / WEBUI_PORT
 WEBUI_HOST = os.environ.get("WEBUI_HOST", "0.0.0.0")
 try:
-  WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "8000"))
+    WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "8000"))
 except (TypeError, ValueError):
-  WEBUI_PORT = 8000
+    WEBUI_PORT = 8000

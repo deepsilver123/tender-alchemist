@@ -24,6 +24,5 @@ rapidfuzz
 qdrant-client
 fastembed
 pint
-# Icecat enrichment & scheduler
 apscheduler
 python-dotenv

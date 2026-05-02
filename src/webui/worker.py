@@ -1,9 +1,9 @@
-"""Synchronous analysis pipeline for the web UI.
+"""Синхронный пайплайн анализа для веб-интерфейса.
 
-Must be called from run_in_executor so the FastAPI event loop stays free.
-All file I/O and HTTP is synchronous — no asyncio inside this module.
-`send_log` is called directly and must be thread-safe (scheduled on main loop
-via asyncio.run_coroutine_threadsafe by the caller in app).
+Должен вызываться через run_in_executor, чтобы event loop FastAPI оставался свободным.
+Весь файловый и HTTP ввод-вывод синхронный — asyncio внутри модуля не используется.
+`send_log` вызывается напрямую и должен быть потокобезопасным (планируется в основной
+цикл через asyncio.run_coroutine_threadsafe на стороне вызывающего кода в app).
 """
 from __future__ import annotations
 

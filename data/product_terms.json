@@ -17,25 +17,43 @@
       "накопитель данных внутренний",
       "накопитель ssd",
       "накопитель внутренний"
+    ],
+    "e2e4_keywords": [
+      "Твердотельный"
     ]
   },
   {
     "id": "storage.hdd",
     "name": "HDD-Диск",
-    "aliases": ["hdd", "жёсткий диск", 
-        "жесткий диск", 
-        "винчестер", 
-        "hdd диск", 
-        "hdd накопитель", 
-        "накопитель hdd", 
-        "накопитель данных", 
-        "накопитель данных внутренний"
+    "aliases": [
+      "hdd",
+      "жёсткий диск",
+      "жесткий диск",
+      "винчестер",
+      "hdd диск",
+      "hdd накопитель",
+      "накопитель hdd",
+      "накопитель данных",
+      "накопитель данных внутренний"
+    ],
+    "e2e4_keywords": [
+      "Жесткий",
+      "Внешний"
     ]
   },
   {
     "id": "storage.nas",
     "name": "NAS (сетевое хранилище)",
-    "aliases": ["nas", "сетевое хранилище", "network attached storage", "nas устройство"]
+    "aliases": [
+      "nas",
+      "сетевое хранилище",
+      "network attached storage",
+      "nas устройство"
+    ],
+    "e2e4_keywords": [
+      "NAS",
+      "Сетевое"
+    ]
   },
   {
     "id": "memory.ram",
@@ -51,42 +69,97 @@
       "модуль ddr4",
       "модуль ddr5",
       "модуль памяти ddr4 8gb"
+    ],
+    "e2e4_keywords": [
+      "Оперативная",
+      "Комплект"
     ]
   },
   {
     "id": "memory.ram.ecc",
     "name": "Оперативная память ECC (серверная)",
-    "aliases": ["оперативная память ecc", "ecc ram", "ram ecc", "озу ecc", "серверная память ecc"]
+    "aliases": [
+      "оперативная память ecc",
+      "ecc ram",
+      "ram ecc",
+      "озу ecc",
+      "серверная память ecc"
+    ],
+    "e2e4_keywords": [
+      "Оперативная"
+    ]
   },
   {
     "id": "cpu",
     "name": "Процессор",
-    "aliases": ["процессор", "cpu", "центральный процессор"]
+    "aliases": [
+      "процессор",
+      "cpu",
+      "центральный процессор"
+    ],
+    "e2e4_keywords": [
+      "Процессор"
+    ]
   },
   {
     "id": "cpu.server",
     "name": "Серверный процессор",
-    "aliases": ["серверный процессор", "процессор для сервера"]
+    "aliases": [
+      "серверный процессор",
+      "процессор для сервера"
+    ],
+    "e2e4_keywords": [
+      "Процессор"
+    ]
   },
   {
     "id": "motherboard",
     "name": "Материнская плата",
-    "aliases": ["материнская плата", "motherboard", "mobo"]
+    "aliases": [
+      "материнская плата",
+      "motherboard",
+      "mobo"
+    ],
+    "e2e4_keywords": [
+      "Материнская"
+    ]
   },
   {
     "id": "motherboard.server",
     "name": "Серверная материнская плата",
-    "aliases": ["серверная материнская плата", "server motherboard"]
+    "aliases": [
+      "серверная материнская плата",
+      "server motherboard"
+    ],
+    "e2e4_keywords": [
+      "Материнская",
+      "Серверная"
+    ]
   },
   {
     "id": "video.gpu",
     "name": "Видеокарта",
-    "aliases": ["видеокарта", "gpu", "графическая карта", "графический ускоритель"]
+    "aliases": [
+      "видеокарта",
+      "gpu",
+      "графическая карта",
+      "графический ускоритель"
+    ],
+    "e2e4_keywords": [
+      "Видеокарта"
+    ]
   },
   {
     "id": "power.supply",
     "name": "Блок питания",
-    "aliases": ["блок питания", "psu", "power supply"]
+    "aliases": [
+      "блок питания",
+      "psu",
+      "power supply"
+    ],
+    "e2e4_keywords": [
+      "Блок"
+    ]
   },
   {
     "id": "cooling.cpu",
@@ -97,219 +170,594 @@
       "охлаждение процессора",
       "кулер",
       "кулер для процессора",
-      "вентилятор для процессора"]
+      "вентилятор для процессора"
+    ],
+    "e2e4_keywords": [
+      "Кулер",
+      "Система"
+    ]
   },
   {
     "id": "cooling.case",
     "name": "Корпусный вентилятор",
-    "aliases": ["вентилятор корпуса", "корпусный вентилятор", "case fan"]
+    "aliases": [
+      "вентилятор корпуса",
+      "корпусный вентилятор",
+      "case fan"
+    ],
+    "e2e4_keywords": [
+      "Вентилятор"
+    ]
   },
   {
     "id": "thermal.paste",
     "name": "Теплопаста / термопаста",
-    "aliases": ["теплопаста", "термопаста", "thermal paste"]
+    "aliases": [
+      "теплопаста",
+      "термопаста",
+      "thermal paste"
+    ],
+    "e2e4_keywords": [
+      "Термопаста",
+      "Теплопаста"
+    ]
   },
   {
     "id": "raid.controller",
     "name": "RAID-контроллер",
-    "aliases": ["raid контроллер", "raid card", "контроллер raid"]
+    "aliases": [
+      "raid контроллер",
+      "raid card",
+      "контроллер raid"
+    ],
+    "e2e4_keywords": [
+      "RAID",
+      "Контроллер"
+    ]
   },
   {
     "id": "hba.adapter",
     "name": "HBA / HBA-адаптер",
-    "aliases": ["hba", "host bus adapter", "адаптер hba"]
+    "aliases": [
+      "hba",
+      "host bus adapter",
+      "адаптер hba"
+    ],
+    "e2e4_keywords": [
+      "HBA",
+      "Адаптер"
+    ]
   },
   {
     "id": "server.chassis",
     "name": "Серверное шасси",
-    "aliases": ["серверный корпус", "шасси сервера", "server chassis"]
+    "aliases": [
+      "серверный корпус",
+      "шасси сервера",
+      "server chassis"
+    ],
+    "e2e4_keywords": [
+      "Корпус",
+      "Шасси"
+    ]
   },
   {
     "id": "server.rack",
     "name": "Серверная стойка / крепление 19",
-    "aliases": ["серверная стойка", "стойка 19", "rack 19", "rack mount"]
+    "aliases": [
+      "серверная стойка",
+      "стойка 19",
+      "rack 19",
+      "rack mount"
+    ],
+    "e2e4_keywords": [
+      "Шкаф"
+    ]
   },
   {
     "id": "network.switch",
     "name": "Коммутатор",
-    "aliases": ["коммутатор", "switch", "сетевой коммутатор", "коммутатор poe", "poe switch"]
+    "aliases": [
+      "коммутатор",
+      "switch",
+      "сетевой коммутатор",
+      "коммутатор poe",
+      "poe switch"
+    ],
+    "e2e4_keywords": [
+      "Коммутатор"
+    ]
   },
   {
     "id": "network.router",
     "name": "Маршрутизатор",
-    "aliases": ["роутер", "маршрутизатор", "router"]
+    "aliases": [
+      "роутер",
+      "маршрутизатор",
+      "router"
+    ],
+    "e2e4_keywords": [
+      "Маршрутизатор",
+      "Wi-Fi",
+      "Роутер"
+    ]
   },
   {
     "id": "network.ap",
     "name": "Точка доступа (Access Point)",
-    "aliases": ["точка доступа", "access point", "ap", "wi-fi точка доступа"]
+    "aliases": [
+      "точка доступа",
+      "access point",
+      "ap",
+      "wi-fi точка доступа"
+    ],
+    "e2e4_keywords": [
+      "Точка"
+    ]
   },
   {
     "id": "network.sfp",
     "name": "SFP / оптический трансивер",
-    "aliases": ["sfp", "sfp+", "оптический трансивер", "трансивер"]
+    "aliases": [
+      "sfp",
+      "sfp+",
+      "оптический трансивер",
+      "трансивер"
+    ],
+    "e2e4_keywords": [
+      "Трансивер",
+      "SFP"
+    ]
   },
   {
     "id": "network.cable",
     "name": "Сетевой кабель",
-    "aliases": ["витая пара", "кабель витая пара", "ethernet cable", "lan cable", "cat5e", "cat6", "cat6a"]
+    "aliases": [
+      "витая пара",
+      "кабель витая пара",
+      "ethernet cable",
+      "lan cable",
+      "cat5e",
+      "cat6",
+      "cat6a"
+    ],
+    "e2e4_keywords": [
+      "Витая",
+      "Патч-корд",
+      "Кабель"
+    ]
   },
   {
     "id": "network.patch_panel",
     "name": "Патч‑панель",
-    "aliases": ["патч-панель", "patch panel", "панель коммутационная"]
+    "aliases": [
+      "патч-панель",
+      "patch panel",
+      "панель коммутационная"
+    ],
+    "e2e4_keywords": [
+      "Патч-панель"
+    ]
   },
   {
     "id": "network.firewall",
     "name": "Межсетевой экран",
-    "aliases": ["фаервол", "межсетевой экран", "firewall", "аппаратный файрвол"]
+    "aliases": [
+      "фаервол",
+      "межсетевой экран",
+      "firewall",
+      "аппаратный файрвол"
+    ],
+    "e2e4_keywords": [
+      "Межсетевой"
+    ]
   },
   {
     "id": "ups",
     "name": "Источник бесперебойного питания (ИБП)",
-    "aliases": ["ибп", "ups", "источник бесперебойного питания"]
+    "aliases": [
+      "ибп",
+      "ups",
+      "источник бесперебойного питания"
+    ],
+    "e2e4_keywords": [
+      "Источник",
+      "ИБП",
+      "Аккумуляторная"
+    ]
   },
   {
     "id": "printer.laser",
     "name": "Лазерный принтер",
-    "aliases": ["лазерный принтер", "laser printer", "принтер лазерный"]
+    "aliases": [
+      "лазерный принтер",
+      "laser printer",
+      "принтер лазерный"
+    ],
+    "e2e4_keywords": [
+      "Принтер"
+    ]
   },
   {
     "id": "printer.inkjet",
     "name": "Струйный принтер",
-    "aliases": ["струйный принтер", "inkjet printer", "принтер струйный"]
+    "aliases": [
+      "струйный принтер",
+      "inkjet printer",
+      "принтер струйный"
+    ],
+    "e2e4_keywords": [
+      "Принтер"
+    ]
   },
   {
     "id": "printer.mfu",
     "name": "МФУ",
-    "aliases": ["мфу", "многофункциональное устройство", "multifunction printer"]
+    "aliases": [
+      "мфу",
+      "многофункциональное устройство",
+      "multifunction printer"
+    ],
+    "e2e4_keywords": [
+      "МФУ",
+      "Базовый"
+    ]
   },
   {
     "id": "scanner",
     "name": "Сканер",
-    "aliases": ["сканер", "сканер документов", "document scanner", "планшетный сканер", "sheet-fed scanner"]
+    "aliases": [
+      "сканер",
+      "сканер документов",
+      "document scanner",
+      "планшетный сканер",
+      "sheet-fed scanner"
+    ],
+    "e2e4_keywords": [
+      "Сканер"
+    ]
   },
   {
     "id": "consumable.cartridge",
     "name": "Картридж",
-    "aliases": ["картридж", "тонер-картридж", "cartridge"]
+    "aliases": [
+      "картридж",
+      "тонер-картридж",
+      "cartridge"
+    ],
+    "e2e4_keywords": [
+      "Картридж",
+      "Набор"
+    ]
   },
-    {
+  {
     "id": "consumable.toner",
     "name": "Тонер",
-    "aliases": ["тонер", "toner", "порошок для лазерного принтера"]
+    "aliases": [
+      "тонер",
+      "toner",
+      "порошок для лазерного принтера"
+    ],
+    "e2e4_keywords": [
+      "Тонер"
+    ]
   },
   {
     "id": "consumable.drum",
     "name": "Барабан (drum unit)",
-    "aliases": ["барабан", "фотобарабан", "drum unit"]
+    "aliases": [
+      "барабан",
+      "фотобарабан",
+      "drum unit"
+    ],
+    "e2e4_keywords": [
+      "Барабан"
+    ]
   },
   {
     "id": "consumable.paper",
     "name": "Бумага офисная",
-    "aliases": ["бумага", "офисная бумага", "a4 бумага", "бумага a4"]
+    "aliases": [
+      "бумага",
+      "офисная бумага",
+      "a4 бумага",
+      "бумага a4"
+    ],
+    "e2e4_keywords": [
+      "Бумага"
+    ]
   },
   {
     "id": "phone.ip",
     "name": "IP-телефон / SIP-аппарат",
-    "aliases": ["ip телефон", "sip телефон", "sip phone", "voip телефон"]
+    "aliases": [
+      "ip телефон",
+      "sip телефон",
+      "sip phone",
+      "voip телефон"
+    ],
+    "e2e4_keywords": [
+      "IP-телефон",
+      "Телефон"
+    ]
   },
   {
     "id": "pbx.ip",
     "name": "IP‑АТС / IP‑PBX",
-    "aliases": ["ip-атс", "ip атс", "ip pbx", "атс", "автоматическая телефонная станция"]
+    "aliases": [
+      "ip-атс",
+      "ip атс",
+      "ip pbx",
+      "атс",
+      "автоматическая телефонная станция"
+    ],
+    "e2e4_keywords": [
+      "IP-АТС",
+      "АТС"
+    ]
   },
   {
     "id": "voip.gateway",
     "name": "VoIP-шлюз / аналоговый шлюз",
-    "aliases": ["voip шлюз", "шлюз voip", "voip gateway", "analog gateway"]
+    "aliases": [
+      "voip шлюз",
+      "шлюз voip",
+      "voip gateway",
+      "analog gateway"
+    ],
+    "e2e4_keywords": [
+      "Шлюз"
+    ]
   },
   {
     "id": "headset",
     "name": "Гарнитура",
-    "aliases": ["гарнитура", "headset", "usb гарнитура", "гарнитура для телефонии"]
+    "aliases": [
+      "гарнитура",
+      "headset",
+      "usb гарнитура",
+      "гарнитура для телефонии"
+    ],
+    "e2e4_keywords": [
+      "Гарнитура"
+    ]
   },
   {
     "id": "monitor",
     "name": "Монитор",
-    "aliases": ["монитор", "display", "жк монитор", "lcd monitor", "led монитор"]
+    "aliases": [
+      "монитор",
+      "display",
+      "жк монитор",
+      "lcd monitor",
+      "led монитор"
+    ],
+    "e2e4_keywords": [
+      "Монитор"
+    ]
   },
   {
     "id": "keyboard",
     "name": "Клавиатура",
-    "aliases": ["клавиатура", "keyboard", "usb клавиатура", "механическая клавиатура"]
+    "aliases": [
+      "клавиатура",
+      "keyboard",
+      "usb клавиатура",
+      "механическая клавиатура"
+    ],
+    "e2e4_keywords": [
+      "Клавиатура"
+    ]
   },
   {
     "id": "mouse",
     "name": "Мышь",
-    "aliases": ["мышь", "мышка", "mouse", "беспроводная мышь", "optical mouse"]
+    "aliases": [
+      "мышь",
+      "мышка",
+      "mouse",
+      "беспроводная мышь",
+      "optical mouse"
+    ],
+    "e2e4_keywords": [
+      "Мышь"
+    ]
   },
   {
     "id": "webcam",
     "name": "Вебкамера",
-    "aliases": ["вебкамера", "веб-камера", "webcam", "камера для видеоконференций"]
+    "aliases": [
+      "вебкамера",
+      "веб-камера",
+      "webcam",
+      "камера для видеоконференций"
+    ],
+    "e2e4_keywords": [
+      "Веб-камера",
+      "Вебкамера"
+    ]
   },
   {
     "id": "microphone",
     "name": "Микрофон",
-    "aliases": ["микрофон", "usb микрофон", "микрофон для конференций"]
+    "aliases": [
+      "микрофон",
+      "usb микрофон",
+      "микрофон для конференций"
+    ],
+    "e2e4_keywords": [
+      "Микрофон"
+    ]
   },
   {
     "id": "kvm.switch",
     "name": "KVM-переключатель",
-    "aliases": ["kvm", "kvm переключатель", "kvm switch"]
+    "aliases": [
+      "kvm",
+      "kvm переключатель",
+      "kvm switch"
+    ],
+    "e2e4_keywords": [
+      "KVM"
+    ]
   },
   {
     "id": "docking.station",
     "name": "Док-станция",
-    "aliases": ["док-станция", "док станция", "docking station", "usb-c док"]
+    "aliases": [
+      "док-станция",
+      "док станция",
+      "docking station",
+      "usb-c док"
+    ],
+    "e2e4_keywords": [
+      "Dok-станция",
+      "Докстанция"
+    ]
   },
   {
     "id": "software.license",
     "name": "Лицензия на программное обеспечение",
-    "aliases": ["лицензия", "лицензия на ПО", "software license"]
+    "aliases": [
+      "лицензия",
+      "лицензия на ПО",
+      "software license"
+    ],
+    "e2e4_keywords": [
+      "Лицензия",
+      "Сертификат",
+      "Антивирус"
+    ]
   },
   {
     "id": "storage.backup.tape",
     "name": "Ленточный накопитель / Tape",
-    "aliases": ["ленточный накопитель", "tape drive", "ленточная библиотека", "tape library"]
+    "aliases": [
+      "ленточный накопитель",
+      "tape drive",
+      "ленточная библиотека",
+      "tape library"
+    ],
+    "e2e4_keywords": [
+      "Ленточный"
+    ]
   },
   {
     "id": "peripheral.usb_hub",
     "name": "USB-хаб",
-    "aliases": ["usb хаб", "usb hub", "распределитель usb"]
+    "aliases": [
+      "usb хаб",
+      "usb hub",
+      "распределитель usb"
+    ],
+    "e2e4_keywords": [
+      "USB-хаб"
+    ]
   },
   {
     "id": "camera.ip",
     "name": "IP-камера",
-    "aliases": ["ip камера", "видеокамера", "камера видеонаблюдения", "cctv камера"]
-  }
-  ,
+    "aliases": [
+      "ip камера",
+      "видеокамера",
+      "камера видеонаблюдения",
+      "cctv камера"
+    ],
+    "e2e4_keywords": [
+      "IP-камера",
+      "Видеокамера"
+    ]
+  },
   {
     "id": "computer.allinone",
     "name": "Моноблок",
-    "aliases": ["моноблок", "моноблок ПК", "all-in-one", "all in one", "aio", "all-in-one pc", "aio pc", "all-in-one компьютер"]
-  }
-  ,
+    "aliases": [
+      "моноблок",
+      "моноблок ПК",
+      "all-in-one",
+      "all in one",
+      "aio",
+      "all-in-one pc",
+      "aio pc",
+      "all-in-one компьютер"
+    ],
+    "e2e4_keywords": [
+      "Моноблок"
+    ]
+  },
   {
     "id": "computer.laptop",
     "name": "Ноутбук",
-    "aliases": ["ноутбук", "лэптоп", "ноут", "laptop", "notebook", "portable laptop"]
-  }
-  ,
+    "aliases": [
+      "ноутбук",
+      "лэптоп",
+      "ноут",
+      "laptop",
+      "notebook",
+      "portable laptop"
+    ],
+    "e2e4_keywords": [
+      "Ноутбук"
+    ]
+  },
   {
     "id": "computer.desktop",
     "name": "Системный блок",
-    "aliases": ["персональный компьютер", "настольный компьютер", "системный блок", "desktop", "desktop pc", "стационарный пк", "пк", "корпус пк"]
+    "aliases": [
+      "персональный компьютер",
+      "настольный компьютер",
+      "системный блок",
+      "desktop",
+      "desktop pc",
+      "стационарный пк",
+      "пк",
+      "корпус пк"
+    ],
+    "e2e4_keywords": [
+      "Системный"
+    ]
   },
   {
     "id": "computer.mini",
     "name": "Мини‑ПК",
-    "aliases": ["миниматюрный персональный компьютер", "мини-пк", "mini pc", "mini-pc", "nuc", "intel nuc", "компактный пк", "sff", "small form factor"]
+    "aliases": [
+      "миниматюрный персональный компьютер",
+      "мини-пк",
+      "mini pc",
+      "mini-pc",
+      "nuc",
+      "intel nuc",
+      "компактный пк",
+      "sff",
+      "small form factor"
+    ],
+    "e2e4_keywords": [
+      "Мини-ПК"
+    ]
   },
   {
     "id": "computer.thinclient",
     "name": "Тонкий клиент",
-    "aliases": ["тонкий клиент", "thin client", "thick client" ]
+    "aliases": [
+      "тонкий клиент",
+      "thin client",
+      "thick client"
+    ],
+    "e2e4_keywords": [
+      "Тонкий"
+    ]
+  },
+  {
+    "id": "printer.fax",
+    "name": "Факс",
+    "aliases": [
+      "факс",
+      "факсимильный аппарат",
+      "fax",
+      "fax machine"
+    ],
+    "e2e4_keywords": [
+      "Факс"
+    ]
   }
 ]

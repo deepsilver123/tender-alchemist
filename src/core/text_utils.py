@@ -163,8 +163,13 @@ def normalize_products(parsed: dict) -> dict:
 
             type_from_requirements = _type_id_from_requirements(p.get("technical_requirements") or {})
             if type_from_requirements and type_from_requirements != p.get("type_id"):
-                p["type_id"] = type_from_requirements
-                p["type_score"] = 100
+                # Do not override an already identified product category
+                # with a generic storage classification derived from requirements.
+                # Example: ноутбук с требованием SSD должен оставаться ноутбуком,
+                # а не превращаться в SSD-диск.
+                if term is None:
+                    p["type_id"] = type_from_requirements
+                    p["type_score"] = 100
         else:
             p["type_id"] = None
             p["type_score"] = 0

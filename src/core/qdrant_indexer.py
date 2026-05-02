@@ -12,17 +12,21 @@ import requests
 import qdrant_client
 from qdrant_client.models import (
     Distance, VectorParams, SparseVectorParams, SparseIndexParams,
-    PointStruct, Filter, FieldCondition, MatchValue,
+    PointStruct, Filter, FieldCondition, MatchValue, MatchText,
     SparseVector, Prefetch, FusionQuery, Fusion,
+    PayloadSchemaType, TextIndexParams, TokenizerType,
 )
 
-from core.config import QDRANT_URL, LLM_BASE_URL, LLM_MODEL, DATA_DIR
+from core.config import (
+    QDRANT_URL, QDRANT_COLLECTION_NAME, QDRANT_LOCAL_PATH,
+    LLM_BASE_URL, LLM_MODEL, LLM_QUERY_MODEL,
+    DENSE_MODEL_NAME as _DENSE_MODEL_NAME,
+    DENSE_DIM as _DENSE_DIM,
+    SPARSE_MODEL_NAME as _SPARSE_MODEL_NAME,
+    LLM_JUDGE_PROMPT, LLM_DISCOVER_PROMPT, LLM_QUERY_PROMPT as _LLM_QUERY_PROMPT,
+    DATA_DIR,
+)
 from core.text_utils import _load_terms
-
-# --- FastEmbed models (загружаются лениво при первом вызове) ---
-_DENSE_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-_SPARSE_MODEL_NAME = "Qdrant/bm42-all-minilm-l6-v2-attentions"
-_DENSE_DIM = 384
 
 # Слова, указывающие на б/у состояние товара
 _USED_MARKERS = frozenset({
@@ -30,8 +34,13 @@ _USED_MARKERS = frozenset({
     'следы эксплуатации', 'потертости', 'ремонт шлейфа',
 })
 
-# Загружаем термины продуктов и строим мапу id -> name из product_terms.json
-_TYPE_ID_TO_CATEGORY = {term['id']: term['name'] for term in _load_terms()}
+# Загружаем термины продуктов и строим мапы id -> name и id -> e2e4_keywords из product_terms.json
+_TERMS_DATA: list[dict] = _load_terms()
+_TYPE_ID_TO_CATEGORY: dict[str, str] = {t['id']: t['name'] for t in _TERMS_DATA}
+# e2e4_keywords — первые слова названий в прайс-листе e2e4, соответствующие данной категории.
+# Используются для фильтрации при поиске (чтобы Nintendo Switch не лез в Коммутаторы).
+_TYPE_ID_TO_E2E4_KEYWORDS: dict[str, list[str]] = {t['id']: t.get('e2e4_keywords', []) for t in _TERMS_DATA}
+del _TERMS_DATA  # больше не нужно
 
 # Категории ПК-устройств, для которых актуальна ОС в поисковом запросе
 _PC_CATEGORIES: frozenset[str] = frozenset(filter(None, (
@@ -84,7 +93,7 @@ RE_LAPTOP_FREQUENCY = re.compile(r'\d+(?:[.,]\d+)?\s*(ghz|мгц|mhz|hz)\b', re.
 RE_MEMORY_TYPE = re.compile(r'\b(?:ddr[45]|dimm|sodimm|udimm|lrdimm|rdimm)\b', re.IGNORECASE)
 RE_MB_ONLY = re.compile(r'\b\d+(?:[.,]\d+)?\s*mb\b', re.IGNORECASE)
 RE_EXTRACT_CAPACITY = re.compile(r'(\d+(?:[.,]\d+)?)\s*(tb|gb|mb|тб|гб|мб)\b', re.IGNORECASE)
-RE_EXTRACT_POWER = re.compile(r'(\d+(?:[.,]\d+)?)\s*(w|вт)\b', re.IGNORECASE)
+RE_EXTRACT_POWER = re.compile(r'(\d+(?:[.,]\d+)?)\s*(w|вт|ватт)\b', re.IGNORECASE)
 RE_EXTRACT_FREQ = re.compile(r'(\d+(?:[.,]\d+)?)\s*(ghz|mhz|hz|ггц|мгц|гц)\b', re.IGNORECASE)
 RE_EXTRACT_DIAGONAL = re.compile(r'(\d+(?:[.,]\d+)?)\s*(?:"|дюйм(?:а|ов)?|inch)', re.IGNORECASE)
 RE_JSON = re.compile(r'\{[^{}]+\}', re.DOTALL)
@@ -99,6 +108,28 @@ ureg.define("gigahertz = 1000 * megahertz = ghz = ггц = GHz = ГГц")
 ureg.define("megahertz = 1000 * kilohertz = mhz = мгц = MHz = МГц")
 ureg.define("hertz = hz = гц = Hz = Гц")
 ureg.define("watt = w = вт = W = Вт")
+ureg.define("kilowatt = 1000 * watt = kW = кВт = киловатт = КВт")
+ureg.define("megawatt = 1000 * kilowatt = MW = МВт = мегаватт = МегаВатт")
+ureg.define("milliwatt = 0.001 * watt = mW = мВт = милливатт = мВт")
+ureg.define("volt = v = в = V = В")
+ureg.define("kilovolt = 1000 * volt = kV = кВ = киловольт = КВ")
+ureg.define("megavolt = 1000 * kilovolt = MV = МВ = мегавольт = МегаВольт")
+ureg.define("millivolt = 0.001 * volt = mV = мВ = милливольт = мВ")
+ureg.define("ampere = a = а = A = А")
+ureg.define("kiloampere = 1000 * ampere = kA = кА = килоампер = КА")
+ureg.define("megaampere = 1000 * kiloampere = MA = МА = мегаампер = МегаА")
+ureg.define("milliampere = 0.001 * ampere = mA = ма = миллиампер = мА")
+ureg.define("ohm = ohm = Ω = ом = ОМ")
+ureg.define("kiloohm = 1000 * ohm = kΩ = кОм = килоом = килоома = килоомов")
+ureg.define("megaohm = 1000 * kiloohm = MΩ = МОм = мегаом = мегаома = мегаомов")
+ureg.define("milliohm = 0.001 * ohm = mΩ = мОм = миллиом = миллиома = миллиомов")
+ureg.define("flop = [] = FLOP")
+ureg.define("kiloflop = 1000 * flop = kFLOP = килофлоп = КФЛОП")
+ureg.define("megaflop = 1000 * kiloflop = MFLOP = мегафлоп = МЕГАФЛОП")
+ureg.define("teraflop = 1e12 * flop = TFLOP = терафлоп = терафлопс = Тфлопс")
+ureg.define("megabit = 1000 * kilobit = mb = мб = мегабит = Мбит")
+ureg.define("gigabit = 1000 * megabit = gb = гбит = гигабит = Гбит")
+ureg.define("terabit = 1000 * gigabit = tb = тбит = терабит = Тбит")
 ureg.define("inch = 2.54 * centimeter = дюйм = дюйма = дюймов")
 
 def _parse_quantity(value_str: str, unit_str: str) -> pint.Quantity | None:
@@ -112,48 +143,72 @@ def _parse_quantity(value_str: str, unit_str: str) -> pint.Quantity | None:
 # ------------------------------------------------------------------ #
 #  Шаблон промпта для LLM-генерации поискового запроса               #
 # ------------------------------------------------------------------ #
+# Форматы строк каталога e2e4 по категориям (используются в промпте — только нужный)
+_CATEGORY_FORMAT_LINES: dict[str, str] = {
+    "МФУ":                    "МФУ [лазерный|струйный] <Модель>, <A4|A3>, <ч/б|цветной>[, <N> стр/мин]",
+    "Лазерный принтер":       "Принтер лазерный <Модель>, <A4|A3>, ч/б[, <N> стр/мин]",
+    "Струйный принтер":       "Принтер струйный <Модель>, <A4|A3>, цветной[, <N> стр/мин]",
+    "Принтер":                "Принтер [лазерный|струйный|матричный] <Модель>, <A4|A3>[, <N> стр/мин]",
+    "Факс":                   "Факс <Модель>",
+    "Сканер":                 "Сканер <Модель>[, <A4|A3>][, <N> стр/мин]",
+    "Ноутбук":                "Ноутбук <Диагональ>\", <CPU>, <N>Gb RAM, <N>Gb SSD[, <ОС>]",
+    "Монитор":                "Монитор <Диагональ>\" [<Матрица>][, <Разрешение>][, <N>Гц]",
+    "Системный блок":         "Системный блок <CPU>[, <N>Gb RAM][, <N>Gb SSD][, <ОС>]",
+    "Моноблок":               "Моноблок <Диагональ>\" <Разрешение>, <CPU>, <N>Gb RAM, <N>Gb SSD[, <ОС>]",
+    "Мини‑ПК":                "Мини-ПК <CPU>[, <N>Gb RAM][, <N>Gb SSD]",
+    "Тонкий клиент":          "Тонкий клиент <Модель>",
+    "SSD-Диск":               "Твердотельный накопитель (SSD) <N>Gb[, <2.5\"|M.2>][, <SATA3|NVMe>]",
+    "HDD-Диск":               "Жесткий диск <N>Tb[, <3.5\"|2.5\">][, SATA3]",
+    "Оперативная память":     "Оперативная память <N>Gb <DDR4|DDR5>[, <N>МГц][, <DIMM|SODIMM>]",
+    "Блок питания":           "Блок питания <N> Вт[, <Модель>][, 80 Plus <Grade>]",
+    "Материнская плата":      "Материнская плата <Модель>, <Сокет>, <Чипсет>",
+    "Процессор":              "Процессор <Модель>[, <Сокет>]",
+    "Коммутатор":             "Коммутатор <Модель>[, <управляемый|неуправляемый>][, <NxСкорость>]",
+    "Маршрутизатор":          "Маршрутизатор <Модель>",
+    "Источник бесперебойного питания (ИБП)": "Источник бесперебойного питания <Модель>[, <N> ВА]",
+    "Мышь":                   "Мышь <Модель>[, <N>dpi][, <оптическая|лазерная>][, <USB|беспроводная>]",
+    "Клавиатура":             "Клавиатура <Модель>[, <мембранная|механическая>][, <USB|беспроводная>]",
+    "IP-телефон / SIP-аппарат": "IP-телефон <Модель>",
+    "Картридж":               "Картридж [лазерный|струйный] <Артикул>[, <цвет>][, <N> страниц]",
+    "Видеокарта":             "Видеокарта <Модель>[, <N>Gb GDDR6]",
+    "Кулер процессора":       "Кулер процессора <Модель>[, <Сокет>]",
+    "IP-камера":              "IP-камера <Модель>[, <N>МП][, <разрешение>]",
+    "Лицензия на программное обеспечение": "Лицензия <Название продукта>[, <версия>]",
+}
+
 _LLM_QUERY_PROMPT = """\
 Ты генератор поисковых запросов для каталога IT-оборудования.
-Твоя задача — составить одну строку запроса, используя ТОЛЬКО данные из полей "Категория", "Название из ТЗ" и "Характеристики из ТЗ", которые указаны ниже.
-НЕ используй данные из примеров формата — это только шаблоны структуры, не источник значений.
+Тебе нужно составить ОДНУ строку запроса для поиска товара категории "{category}".
 
-Форматы строк каталога по категориям:
-  МФУ           → МФУ [лазерный|струйный] <Модель>, <A4|A3>, <ч/б|цветной>[, <N> стр/мин]
-  Принтер       → Принтер [лазерный|струйный|матричный] <Модель>, <A4|A3>, <ч/б|цветной>[, <N> стр/мин]
-  Ноутбук       → Ноутбук <Серия> <Диагональ>", <CPU>, <N>Gb RAM, <N>Gb SSD[, <ОС>]
-  Монитор       → Монитор <Диагональ>" [<Матрица>][, <Разрешение>]
-  Системный блок → Системный блок [,] <CPU> <N> ГГц, <N>Gb RAM, <N>Gb SSD[, <ОС>]
-  Моноблок      → Моноблок <Серия> <Диагональ>" <Разрешение>, <CPU> <N> ГГц, <N>Gb RAM, <N>Gb SSD
-  SSD-Диск      → Твердотельный накопитель (SSD) <N>Gb[, <2.5"|M.2>][, <SATA3|NVMe>]
-  HDD-Диск      → Жесткий диск <N>Tb[, <3.5"|2.5">][, SATA3]
-  Оперативная память → Оперативная память <N>Gb <DDR4|DDR5>[ <N>МГц][, <DIMM|SODIMM>][, ECC]
-  Блок питания  → Блок питания <N> Вт <Модель>[, 80 Plus <Grade>]
-  Материнская плата → Материнская плата <Модель>, <Сокет>, <Чипсет>
-  Процессор     → Процессор <Модель>[, <Сокет>]
-  Коммутатор    → Коммутатор <Модель>[, <управляемый|неуправляемый>][, <NxСкорость>]
-  Маршрутизатор → Маршрутизатор <Модель>
-  ИБП           → Источник бесперебойного питания <Модель>[, <N> ВА]
-  Мышь          → Мышь <Модель>[, <N>dpi][, <оптическая|лазерная>][, <USB|беспроводная>]
-  Клавиатура    → Клавиатура <Модель>[, <мембранная|механическая>][, <USB|беспроводная>]
-  Факс          → Факс <Модель>
-  Сканер        → Сканер <Модель>[, <A4|A3>][, <N> стр/мин]
-  IP-телефон    → IP-телефон <Модель>
-  Картридж      → Картридж [лазерный|струйный] <Артикул>[, <цвет>][, <N> страниц]
+ВАЖНО:
+- Запрос должен начинаться СРАЗУ СЛОВОМ "{category}".
+- Категория "{category}" — это основной товар. НЕ ПЕРЕВОДИ и не заменяй её.
+- Никогда не начинай запрос с названия внутреннего компонента или детали (SSD, HDD, Оперативная память, Процессор, Материнская плата и т.п.).
+- Если в характеристиках есть SSD, RAM, CPU, это не меняет категорию товара. Запрос остаётся про {category}.
+- Если продукт — ноутбук, запрашивай ноутбук, а не отдельный накопитель или модуль памяти.
+- Используй шаблон ниже, заполняя только те части, которые есть в ТЗ.
+- Разделяй части запроса только запятой и пробелом.
+- НЕ используй символы |, [, ], →, ->, ;, :, ≥, ≤.
+- НЕ добавляй альтернативы или варианты через |.
+- НЕ добавляй слова "примерно", "не менее", "более", "или".
+- Верни ТОЛЬКО одну строку запроса, без пояснений, без кавычек, без JSON.
+
+Формат строки каталога для категории "{category}":
+  {category} → {format_line}
 
 Правила подстановки значений:
-- Квадратные скобки [ ] в шаблонах обозначают необязательные части. Подставляй только значение, без самих скобок. Если значение неизвестно — пропусти этот фрагмент целиком.
-- Угловые скобки < > обозначают место для конкретного значения из ТЗ. Подставляй только значение, без самих скобок.
-- Вертикальная черта | означает выбор одного из вариантов. Выбери подходящий вариант и подставь его без скобок.
-- Бренд и модель: берёшь из поля "Название из ТЗ" или "Характеристики из ТЗ". Если не указаны — не подставляй ничего.
-- Объёмы памяти/накопителей: 16Gb, 512Gb, 1Tb (числа из ТЗ, единица Gb или Tb).
-- ОС: "W10Pro" если Windows 10 Pro, "W11Pro" если Windows 11 Pro, "W11" если Windows 11, пропусти если нет.
-- МФУ/Принтер без указания типа печати → "лазерный".
-- Если значение поля неизвестно — пропусти его, не придумывай.
+- Квадратные скобки [ ] — необязательные части. Подставляй значение или пропусти фрагмент.
+- Угловые скобки < > — место для значения из ТЗ. Пиши только значение, без скобок.
+- Вертикальная черта | — выбор одного варианта.
+- Бренд и модель: берёшь из "Название из ТЗ" или "Характеристики из ТЗ". Нет — пропусти.
+- Объёмы памяти/накопителей: 16Gb, 512Gb, 1Tb.
+- ОС: "W10Pro" / "W11Pro" / "W11" / пропусти если нет.
+- Если значение неизвестно — пропусти фрагмент, не придумывай.
 
 Категория: {category}
 Название из ТЗ: {original}
 Характеристики из ТЗ: {specs}
-Поисковый запрос (одна строка, без кавычек, без пояснений):"""
+Поисковый запрос (строка должна начинаться с "{category}"):"""
 
 
 class TenderMVPQdrant:
@@ -237,6 +292,12 @@ class TenderMVPQdrant:
                     ),
                 },
             )
+            # Текстовый индекс для фильтрации по category_prefix (первое слово названия)
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="category_prefix",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
 
     # ------------------------------------------------------------------ #
     #  Построение поискового запроса                                       #
@@ -258,20 +319,24 @@ class TenderMVPQdrant:
 
         category = self._infer_query_category(product_dict, name, chars)
 
+        # Берём только нужный шаблон для данной категории (чтобы LLM не путался)
+        format_line = _CATEGORY_FORMAT_LINES.get(category, f"{category} <Модель>")
+
         # Формируем строку характеристик (не более 25 полей)
         spec_lines = "; ".join(f"{k}: {v}" for k, v in list(chars.items())[:25]) if chars else "(не указаны)"
 
         prompt = _LLM_QUERY_PROMPT.format(
             category=category,
+            format_line=format_line,
             original=original or name or "(не указано)",
             specs=spec_lines,
         )
 
         try:
-            base = (LLM_BASE_URL or "http://localhost:11434").rstrip("/")
+            base = LLM_BASE_URL.rstrip("/")
             resp = requests.post(
                 f"{base}/api/generate",
-                json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
+                json={"model": LLM_QUERY_MODEL or LLM_MODEL, "prompt": prompt, "stream": False},
                 timeout=45,
             )
             resp.raise_for_status()
@@ -284,6 +349,16 @@ class TenderMVPQdrant:
                 line = re.sub(r'^(поисковый запрос\s*:|ответ\s*:)\s*', '', line, flags=re.IGNORECASE)
                 line = re.sub(r'^["«»\'`]+|["«»\'`]+$', '', line).strip()
                 if line and len(line) > 4:
+                    # Валидация: запрос должен начинаться с названия категории.
+                    if not line.lower().startswith(category.lower()):
+                        return None
+                    # Запрос должен быть похож на строку каталога: без альтернатив, стрелок, скобок,
+                    # сравнения и дополнительных разделителей.
+                    if re.search(r'[\[\]|→]|->|[:;≥≤]', line):
+                        return None
+                    # Не используем логическую разделительную черту, если модель всё же её вставила.
+                    if '|' in line:
+                        return None
                     return line
         except Exception:
             pass
@@ -439,6 +514,20 @@ class TenderMVPQdrant:
         return {lower}
 
     @staticmethod
+    def _compare_quantities(actual, required) -> bool:
+        try:
+            if hasattr(actual, 'to') and hasattr(required, 'to'):
+                required_units = required.units
+                actual_converted = actual.to(required_units)
+                return actual_converted.magnitude >= required.magnitude
+        except Exception:
+            pass
+        try:
+            return float(actual) >= float(required)
+        except Exception:
+            return False
+
+    @staticmethod
     def _extract_model_terms(text: str) -> list[str]:
         patterns = [
             r'\b[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,12})+\b',
@@ -495,13 +584,13 @@ class TenderMVPQdrant:
         for a, b in re.findall(r'(\d{3,4})\s*[xх×]\s*(\d{3,4})', lower):
             add(f'{a}x{b}', 95, True)
 
-        for value, unit in re.findall(r'(\d+(?:[.,]\d+)?)\s*(тб|tb|терабайт(?:а|ов)?|гб|gb|гигабайт(?:а|ов)?)\b', lower):
+        for value, unit in re.findall(r'(\d+(?:[.,]\d+)?)\s*(tb|gb|mb|тб|гб|мб)\b', lower):
             add(TenderMVPQdrant._normalize_capacity_token(value, unit), 85, True)
 
-        for value in re.findall(r'(\d{2,5})\s*(?:вт|w)\b', lower):
-            add(f'{int(value)}W', 85, True)
+        for value in re.findall(r'(\d+(?:[.,]\d+)?)\s*(?:w|вт|ватт)\b', lower):
+            add(f'{int(float(value))}W', 85, True)
 
-        for value, unit in re.findall(r'(\d+(?:[.,]\d+)?)\s*(ггц|ghz|гц|hz|мгц|mhz)\b', lower):
+        for value, unit in re.findall(r'(\d+(?:[.,]\d+)?)\s*(ghz|mhz|hz|ггц|мгц|гц)\b', lower):
             if unit in {'ггц', 'ghz'}:
                 suffix = 'GHz'
             elif unit in {'мгц', 'mhz'}:
@@ -532,6 +621,29 @@ class TenderMVPQdrant:
 
         for value in re.findall(r'(\d+)\s*(?:мбайт/сек|mb/s|мб/с)\b', lower):
             add(f'{int(value)}MB/s', 60, False)
+
+        for value in re.findall(r'(\d+(?:[.,]\d+)?)\s*(?:мбит/сек|мбит/с|mbps|mb/s|mbit/s)\b', lower):
+            num = float(value.replace(',', '.'))
+            if num >= 1000:
+                add(f'{int(num / 1000)}Gbps', 85, True)
+            else:
+                add(f'{int(num)}Mbps', 85, True)
+
+        for value in re.findall(r'(\d+(?:[.,]\d+)?)\s*(?:гбит/сек|гбит/с|gbps|gb/s|gbit/s)\b', lower):
+            num = float(value.replace(',', '.'))
+            if num >= 1000:
+                add(f'{int(num / 1000)}Tbps', 85, True)
+            else:
+                add(f'{int(num)}Gbps', 85, True)
+
+        for value in re.findall(r'количество\s+порт(?:ов|а)?.*?(?:[:\s≤≥<>]*)(\d+)\b(?!\s*(?:гбит|мбит|gbps|mbps))', lower):
+            add(f'{int(value)} портов', 80, False)
+
+        for value in re.findall(r'(\d+)\s*(?:порт(?:ов|а)?|порта?)\b', lower):
+            add(f'{int(value)} портов', 80, False)
+
+        if re.search(r'\bpoe\b', lower):
+            add('PoE', 90, True)
 
         keyword_patterns = [
             (r'\b80\s*plus\s*(titanium|platinum|gold|silver|bronze|white)\b', lambda m: f"80 Plus {m.group(1).title()}", 90, True),
@@ -566,6 +678,10 @@ class TenderMVPQdrant:
             (r'\budimm\b', lambda _m: 'UDIMM', 90, True),
             (r'(?<!so-)\bdimm\b', lambda _m: 'DIMM', 90, True),
             (r'\becc\b', lambda _m: 'ECC', 90, True),
+            (r'\bpoe\b', lambda _m: 'PoE', 90, True),
+            (r'\b(l[23])\b', lambda m: m.group(1).upper(), 90, True),
+            (r'\bуправляем[ыйаяое]\b', lambda _m: 'управляемый', 80, False),
+            (r'\bнеуправляем[ыйаяое]\b', lambda _m: 'неуправляемый', 80, False),
         ]
         for pattern, formatter, weight, hard in keyword_patterns:
             for match in re.finditer(pattern, lower):
@@ -667,7 +783,7 @@ class TenderMVPQdrant:
                 if req_qty:
                     for cap_value, cap_unit in RE_EXTRACT_CAPACITY.findall(title_lower):
                         act_qty = _parse_quantity(cap_value, cap_unit)
-                        if act_qty and act_qty >= req_qty:
+                        if act_qty and self._compare_quantities(act_qty, req_qty):
                             return True
             return any(token in title_lower for token in self._capacity_tokens(term))
 
@@ -679,7 +795,7 @@ class TenderMVPQdrant:
                 if req_qty:
                     for p_value, p_unit in RE_EXTRACT_POWER.findall(title_lower):
                         act_qty = _parse_quantity(p_value, p_unit)
-                        if act_qty and act_qty >= req_qty:
+                        if act_qty and self._compare_quantities(act_qty, req_qty):
                             return True
                     num = match.group(1).replace(',', '.')
                     if num.endswith('.0'): num = num[:-2]
@@ -693,7 +809,7 @@ class TenderMVPQdrant:
                 if req_qty:
                     for f_value, f_unit in RE_EXTRACT_FREQ.findall(title_lower):
                         act_qty = _parse_quantity(f_value, f_unit)
-                        if act_qty and act_qty >= req_qty:
+                        if act_qty and self._compare_quantities(act_qty, req_qty):
                             return True
 
         # 4. Length (Дюймы)
@@ -704,7 +820,7 @@ class TenderMVPQdrant:
                 if req_qty:
                     for v_val in RE_EXTRACT_DIAGONAL.findall(title_lower):
                         act_qty = _parse_quantity(v_val, 'inch')
-                        if act_qty and act_qty >= req_qty:
+                        if act_qty and self._compare_quantities(act_qty, req_qty):
                             return True
                     num = match.group(1).replace(',', '.')
                     if num.endswith('.0'): num = num[:-2]
@@ -794,24 +910,28 @@ class TenderMVPQdrant:
             cand_lines += f"{i}. {c.get('title', '')}{used_str}\n"
 
         prompt = (
-            f"Требования из технического задания: {requirements}\n\n"
+            f"Требования из технического задания:\n{requirements}\n\n"
             f"Список товаров из прайс-листа:\n{cand_lines}\n"
-            "Задача:\n"
-            "1. Найди товары, которые полностью соответствуют требованиям ТЗ.\n"
-            "2. Если обязательный признак должен быть явно виден в названии товара (например: Gold, ATX, 2.5, SATA, 1Tb), но его нет в названии, считай товар неподходящим.\n"
-            "3. Не додумывай отсутствующие характеристики по бренду, модели или общему классу товара.\n"
-            "4. Товары с пометкой [б/у] — отклоняй, если ТЗ явно не разрешает б/у.\n"
-            "5. Из подходящих товаров выбери наиболее точное совпадение с ТЗ.\n"
-            "6. Если выбран товар, в поле reason кратко опиши, почему он соответствует.\n"
-            "7. Если ни один товар не подходит, в поле reason укажи, что именно не совпало (например: нет IPS, недостаточно RAM, нет SSD 250 ГБ, частота CPU ниже, диагональ экрана меньше).\n"
-            "8. Ответь ТОЛЬКО JSON без пояснений: "
-            "{\"idx\": N, \"reason\": \"краткое обоснование\"} "
-            "где N — номер товара в списке (от 1).\n"
-            "Если ни один товар не подходит — {\"idx\": 0, \"reason\": \"причина\"}"
+            "Правила проверки (применяй строго по порядку):\n"
+            "ПРАВИЛО 1 — ЧИСЛОВЫЕ МИНИМУМЫ (наивысший приоритет):\n"
+            "  Если в ТЗ указано '≥ N' для мощности (Вт/W), объёма (ГБ/GB), частоты (ГГц/МГц), скорости (МБ/с) и т.п. —\n"
+            "  товар подходит ТОЛЬКО если его значение из названия >= N. Товар с меньшим значением — ОТКЛОНЯЙ немедленно.\n"
+            "  Пример: ТЗ требует ≥ 400 Вт, а товар '300W' — ОТКЛОНИТЬ. Товар '400W' или '450W' — разрешён.\n"
+            "ПРАВИЛО 2 — ЧИСЛОВЫЕ МАКСИМУМЫ:\n"
+            "  Если в ТЗ указано '≤ N' — товар подходит только если его значение <= N.\n"
+            "ПРАВИЛО 3 — КЛЮЧЕВЫЕ ТЕХНИЧЕСКИЕ МАРКЕРЫ:\n"
+            "  Если ТЗ требует конкретный тип/стандарт (DDR4, NVMe, SATA, ATX, IPS, Gold и т.п.) и в названии\n"
+            "  товара явно указан ДРУГОЙ тип — отклоняй. Если тип вообще не упомянут в названии — не отклоняй,\n"
+            "  так как краткие названия не содержат все характеристики.\n"
+            "ПРАВИЛО 4 — Б/У товары отклоняй, если ТЗ явно не разрешает б/у.\n"
+            "ПРАВИЛО 5 — Из оставшихся подходящих выбери товар с наибольшим совпадением характеристик.\n\n"
+            "Ответь ТОЛЬКО JSON без пояснений:\n"
+            "{\"idx\": N, \"reason\": \"краткое обоснование\"} где N — номер товара в списке (от 1).\n"
+            "Если ни один товар не подходит — {\"idx\": 0, \"reason\": \"причина отклонения всех\"}"
         )
 
         try:
-            base = (LLM_BASE_URL or "http://localhost:11434").rstrip("/")
+            base = LLM_BASE_URL.rstrip("/")
             resp = requests.post(
                 f"{base}/api/generate",
                 json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
@@ -830,6 +950,103 @@ class TenderMVPQdrant:
     # ------------------------------------------------------------------ #
     #  Поиск: гибридный (Dense + Sparse + RRF) + LLM re-ranking           #
     # ------------------------------------------------------------------ #
+
+
+    def _discover_category(self, product_name: str) -> dict | None:
+        """Спрашивает LLM: является ли product_name IT-оборудованием?
+
+        Если да — создаёт новую запись в product_terms.json, перезагружает
+        глобальные словари и возвращает созданную запись.
+        Если нет или LLM ошиблась — возвращает None.
+        """
+        if not product_name:
+            return None
+
+        prompt = LLM_DISCOVER_PROMPT.format(name=product_name)
+        try:
+            base = LLM_BASE_URL.rstrip("/")
+            resp = requests.post(
+                f"{base}/api/generate",
+                json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
+                timeout=45,
+            )
+            resp.raise_for_status()
+            raw = resp.json().get("response", "").strip()
+
+            # Вырезаем JSON из ответа (LLM может добавлять лишний текст)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not m:
+                return None
+            entry = json.loads(m.group())
+
+            if entry.get("not_it"):
+                return None  # Явно не IT-товар
+
+            # Валидация обязательных полей
+            if not all(k in entry for k in ("id", "name", "aliases", "e2e4_keywords")):
+                return None
+
+            # Дозаписываем в product_terms.json
+            terms_path = DATA_DIR / "product_terms.json"
+            terms = json.loads(terms_path.read_text("utf-8"))
+
+            # Не дублируем если id уже есть
+            if any(t["id"] == entry["id"] for t in terms):
+                return entry
+
+            terms.append(entry)
+            terms_path.write_text(json.dumps(terms, ensure_ascii=False, indent=2), "utf-8")
+
+            # Перезагружаем глобальные словари в памяти процесса
+            global _TYPE_ID_TO_CATEGORY, _TYPE_ID_TO_E2E4_KEYWORDS
+            _TYPE_ID_TO_CATEGORY[entry["id"]] = entry["name"]
+            _TYPE_ID_TO_E2E4_KEYWORDS[entry["id"]] = entry["e2e4_keywords"]
+
+            import logging
+            logging.getLogger(__name__).info(
+                "Новая категория добавлена в product_terms.json: %s (%s)",
+                entry["id"], entry["name"],
+            )
+            return entry
+
+        except Exception:
+            return None
+
+    def _build_category_filter(self, product_dict: dict) -> Filter | None:
+        """Строит Qdrant-фильтр по полю category_prefix на основе type_id товара.
+
+        Ключевые слова для фильтра берутся из поля e2e4_keywords в product_terms.json.
+        Если тип не распознан — вызывается _discover_category() для авто-добавления
+        новой категории через LLM. Если и это не помогло — возвращается None
+        (поиск без фильтра по категории).
+        """
+        type_id = str(product_dict.get('type_id') or '').strip().lower()
+        keywords: list[str] = []
+
+        if type_id and type_id in _TYPE_ID_TO_E2E4_KEYWORDS:
+            keywords = _TYPE_ID_TO_E2E4_KEYWORDS[type_id]
+        else:
+            # Тип не известен — просим LLM создать новую запись в каталоге
+            product_name = str(product_dict.get('product_name', '')).strip()
+            new_entry = self._discover_category(product_name) if product_name else None
+            if new_entry:
+                keywords = new_entry.get('e2e4_keywords', [])
+
+        if not keywords:
+            return None
+
+        if len(keywords) == 1:
+            return Filter(
+                must=[FieldCondition(key="category_prefix", match=MatchValue(value=keywords[0]))]
+            )
+
+        # Несколько вариантов → should (OR)
+        return Filter(
+            should=[
+                FieldCondition(key="category_prefix", match=MatchValue(value=kw))
+                for kw in keywords
+            ]
+        )
 
     def search_product(
         self,
@@ -853,12 +1070,16 @@ class TenderMVPQdrant:
             dense_vec = self._embed_dense([query_text])[0]
             sparse_vec = self._embed_sparse([query_text])[0]
 
+            # Фильтр по первому слову категории — отсекает нерелевантные категории
+            # (например, не даёт «Switch Nintendo» попасть в поиск по «Коммутатор»)
+            category_filter = self._build_category_filter(product_dict)
+
             retrieval_limit = max(limit * 4, 20)
             search_result = self.client.query_points(
                 collection_name=self.collection_name,
                 prefetch=[
-                    Prefetch(query=dense_vec, using="dense", limit=retrieval_limit),
-                    Prefetch(query=sparse_vec, using="sparse", limit=retrieval_limit),
+                    Prefetch(query=dense_vec, using="dense", limit=retrieval_limit, filter=category_filter),
+                    Prefetch(query=sparse_vec, using="sparse", limit=retrieval_limit, filter=category_filter),
                 ],
                 query=FusionQuery(fusion=Fusion.RRF),
                 limit=retrieval_limit,
@@ -1003,7 +1224,14 @@ class TenderMVPQdrant:
             sparse_vecs = self._embed_sparse(batch_titles)
 
             for i, (title, d_vec, s_vec) in enumerate(zip(batch_titles, dense_vecs, sparse_vecs)):
-                payload: dict = {"title": title, "vendor": "e2e4"}
+                # Первое слово названия — ключ категории для фильтрации.
+                # Включаем дефис чтобы корректно захватить «Wi-Fi», «IP-телефон», «Патч-корд».
+                category_prefix = re.match(r'^([А-Яа-яЁёA-Za-z][А-Яа-яЁёA-Za-z0-9\-]*)', title.strip())
+                payload: dict = {
+                    "title": title,
+                    "vendor": "e2e4",
+                    "category_prefix": category_prefix.group(1) if category_prefix else "",
+                }
                 try:
                     p = prices[batch_start + i]
                     if p is not None and str(p).replace('.', '', 1).replace(',', '', 1).isdigit():
