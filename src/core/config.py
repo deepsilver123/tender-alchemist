@@ -94,9 +94,6 @@ TENDER_DOCUMENT_JSON_PROMPT = """Ты — эксперт по закупкам. 
 
 Верни только JSON. Никакого текста до или после."""
 
-# --- SearXNG ---
-SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8080").rstrip("/")
-SEARXNG_TIMEOUT = 10
 SEARCH_MAX_RESULTS = int(os.environ.get("SEARCH_MAX_RESULTS", "15"))
 
 # Лёгкая модель для быстрого NER / генерации поисковых запросов

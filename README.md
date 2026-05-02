@@ -215,7 +215,6 @@ docker compose down
 | ollama | http://localhost:11434 | LLM API (Ollama) |
 | docling-serve | http://localhost:5001 | Конвертация документов (REST) |
 | qdrant | http://localhost:6333/dashboard | Qdrant Web UI + REST API |
-| searxng-core | http://localhost:8080 | Веб-поисковик SearXNG (для будущих функций) |
 
 ### Загрузка моделей в Docker
 
@@ -398,7 +397,6 @@ tender-alchemist/
 | `SPARSE_MODEL_NAME` | `Qdrant/bm42-all-minilm-l6-v2-attentions` | FastEmbed sparse-модель (BM42) |
 | `SEARCH_MAX_RESULTS` | `10` | Максимальное число кандидатов из Qdrant |
 | `E2E4_CATALOG_URL` | `https://e2e4online.ru/ws/excel/irkutsk.e2e4online.ru.zip` | URL ZIP-прайса e2e4 |
-| `SEARXNG_URL` | `http://localhost:8080` | URL SearXNG |
 | `TZ` | `Asia/Irkutsk` | Часовой пояс (для планировщика) |
 
 ---

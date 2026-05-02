@@ -54,18 +54,6 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  searxng-core:
-    container_name: searxng-core
-    image: searxng/searxng:latest
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      - SEARXNG_HOSTNAME=searxng-core
-      - SEARXNG_SECRET_KEY=changeme-use-random-string
-    volumes:
-      - searxng_data:/etc/searxng
-
   webui:
     build:
       context: .
@@ -81,7 +69,6 @@ services:
       - EMBEDDING_BASE_URL=http://ollama:11434
       - EMBEDDING_MODEL=bge-m3
       - DOCLING_BASE_URL=http://docling-serve:5001
-      - SEARXNG_URL=http://searxng-core:8080
       - QDRANT_URL=http://qdrant:6333
       - TZ=Asia/Irkutsk
     volumes:
@@ -90,7 +77,6 @@ services:
     depends_on:
       - ollama
       - docling-serve
-      - searxng-core
     restart: unless-stopped
 
 volumes:
@@ -99,4 +85,3 @@ volumes:
   open-webui_data:
   webui_data:
   webui_logs:
-  searxng_data:
